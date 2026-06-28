@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
     }
 
     // If Firebase is configured, email/password signup is handled client-side
-    if (isFirebaseAdminConfigured) {
+    const configured = await isFirebaseAdminConfigured();
+    if (configured) {
       return NextResponse.json({ error: '__USE_FIREBASE_CLIENT__' }, { status: 400 });
     }
 

@@ -7,13 +7,16 @@ export async function POST(request: NextRequest) {
     const { email, password, idToken } = await request.json();
 
     // Firebase Google sign-in: client sends idToken
-    if (idToken && isFirebaseAdminConfigured) {
-      try {
-        const { user, token } = await verifyFirebaseToken(idToken);
-        return NextResponse.json({ user, token });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Firebase auth failed';
-        return NextResponse.json({ error: msg }, { status: 401 });
+    if (idToken) {
+      const configured = await isFirebaseAdminConfigured();
+      if (configured) {
+        try {
+          const { user, token } = await verifyFirebaseToken(idToken);
+          return NextResponse.json({ user, token });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Firebase auth failed';
+          return NextResponse.json({ error: msg }, { status: 401 });
+        }
       }
     }
 
@@ -27,7 +30,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ user, token });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
-      // If Firebase is configured, tell client to use client-side signIn
       if (msg === '__USE_FIREBASE_CLIENT__') {
         return NextResponse.json({ error: '__USE_FIREBASE_CLIENT__' }, { status: 400 });
       }

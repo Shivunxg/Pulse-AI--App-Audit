@@ -1,20 +1,30 @@
-import { cert, getApps, getApp, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+// Firebase Admin — fully lazy to avoid module-level crashes
+let _adminAuth: any = null;
+let _initAttempted = false;
 
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-export const isFirebaseAdminConfigured = !!serviceAccount;
-
-let adminAuth: ReturnType<typeof getAuth> | null = null;
-
-if (serviceAccount) {
+async function tryInit() {
+  if (_initAttempted) return;
+  _initAttempted = true;
   try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccount) return;
+    const { cert, getApps, getApp, initializeApp } = await import('firebase-admin/app');
+    const { getAuth } = await import('firebase-admin/auth');
     const credentials = JSON.parse(serviceAccount);
     const app = getApps().length ? getApp() : initializeApp({ credential: cert(credentials) });
-    adminAuth = getAuth(app);
+    _adminAuth = getAuth(app);
+    console.log('Firebase Admin initialized successfully');
   } catch (err) {
     console.error('Firebase Admin init error:', err);
   }
 }
 
-export { adminAuth };
+export async function getAdminAuth() {
+  if (!_initAttempted) await tryInit();
+  return _adminAuth;
+}
+
+export async function isFirebaseAdminConfigured(): Promise<boolean> {
+  if (!_initAttempted) await tryInit();
+  return !!_adminAuth;
+}
