@@ -86,13 +86,13 @@ export function AuthForm() {
         body: JSON.stringify({ idToken }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Google sign-in failed'); return; }
+      if (!res.ok) { setError(`${res.status}: ${data.error || 'Google sign-in failed'}`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google sign-in failed';
       if (msg.includes('popup-closed') || msg.includes('auth/popup-closed')) return;
-      setError(msg);
+      setError(`Network: ${msg}`);
     } finally { setLoading(false); }
   };
 
