@@ -18,32 +18,27 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-  await db.session.create({
-    data: { token, userId, expiresAt },
-  });
-
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.session.create({ data: { token, userId, expiresAt } });
   return token;
 }
 
 export async function validateSession(token: string) {
+  if (!token) return null;
   const session = await db.session.findUnique({
     where: { token },
     include: { user: true },
   });
-
   if (!session) return null;
   if (session.expiresAt < new Date()) {
     await db.session.delete({ where: { id: session.id } });
     return null;
   }
-
   return session.user;
 }
 
 export async function deleteSession(token: string): Promise<void> {
-  await db.session.deleteMany({ where: { token } });
+  if (token) await db.session.deleteMany({ where: { token } });
 }
 
 export function getTokenFromHeader(request: Request): string | null {
