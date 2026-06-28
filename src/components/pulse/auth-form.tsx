@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { HeartPulse, Loader2, ArrowRight, Mail } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase/client';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getAuth, updateProfile } from 'firebase/auth';
 
 export function AuthForm() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -54,7 +54,7 @@ export function AuthForm() {
       const { auth: firebaseAuth } = await import('@/lib/firebase/client');
       if (!firebaseAuth) throw new Error('Firebase not configured');
       const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-      if (name) await result.user.updateProfile({ displayName: name });
+      if (name) await updateProfile(result.user, { displayName: name });
       const idToken = await result.user.getIdToken();
       const res = await fetch('/api/auth/login', {
         method: 'POST',
