@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audits    Audit[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Audit {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status        String   @default("pending")
+  healthScore   Float?
+  performanceScore  Float?
+  seoScore         Float?
+  accessibilityScore Float?
+  securityScore    Float?
+  uxScore          Float?
+  findings      String   @default("{}")
+  aiSummary     String   @default("{}")
+  responseTime  Float?
+  pageSize      Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
