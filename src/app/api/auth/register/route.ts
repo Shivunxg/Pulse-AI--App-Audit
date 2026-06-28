@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerUser, logoutUser } from '@/lib/auth';
+import { isFirebaseAdminConfigured } from '@/lib/firebase/admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,14 +9,17 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
-
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
+    // If Firebase is configured, email/password signup is handled client-side
+    if (isFirebaseAdminConfigured) {
+      return NextResponse.json({ error: '__USE_FIREBASE_CLIENT__' }, { status: 400 });
+    }
+
     try {
       const { user, token } = await registerUser(email, name, password);
-
       return NextResponse.json({ user, token });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed';

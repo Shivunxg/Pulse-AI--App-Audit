@@ -1,11 +1,19 @@
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { db } from './db';
-import { supabase, isSupabaseConfigured } from './supabase/client';
+import { isFirebaseAdminConfigured, adminAuth } from './firebase/admin';
 
 const scryptAsync = promisify(scrypt);
 
-// --- Local password helpers (fallback when Supabase is not configured) ---
+// --- Types ---
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+// --- Local password helpers (fallback when Firebase is not configured) ---
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
@@ -28,7 +36,7 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function validateSession(token: string) {
+async function validateLocalSession(token: string) {
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { token },
@@ -52,198 +60,127 @@ export function getTokenFromHeader(request: Request): string | null {
   return null;
 }
 
-// --- Supabase Auth helpers ---
+// --- Core auth: getUserFromRequest ---
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string | null;
-}
-
-/**
- * Validate a Bearer token.
- * - If Supabase is configured: validate as a Supabase access_token via getUser()
- * - Fallback: validate as a local session token
- */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
   const token = getTokenFromHeader(request);
   if (!token) return null;
 
-  // Try Supabase Auth first
-  if (isSupabaseConfigured && supabase) {
+  // Firebase mode: verify ID token
+  if (isFirebaseAdminConfigured && adminAuth) {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) {
-        // Ensure user exists in our local DB (for data relations)
-        await ensureLocalUser(user.id, user.email!, user.user_metadata?.name || user.user_metadata?.full_name || null);
+      const decoded = await adminAuth.verifyIdToken(token);
+      if (decoded) {
+        await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || decoded.firebase?.sign_in_provider === 'google.com' ? (decoded.name || null) : null);
         return {
-          id: user.id,
-          email: user.email!,
-          name: user.user_metadata?.name || user.user_metadata?.full_name || null,
+          id: decoded.uid,
+          email: decoded.email || '',
+          name: decoded.name || null,
         };
       }
     } catch (err) {
-      console.error('Supabase auth validation error:', err);
+      // Token invalid or expired — don't fall through to local
+      return null;
     }
-    // If Supabase fails, don't fall through to local (prevents mixed auth)
     return null;
   }
 
-  // Fallback: local session
-  const localUser = await validateSession(token);
+  // Fallback: local session token
+  const localUser = await validateLocalSession(token);
   if (localUser) {
     return { id: localUser.id, email: localUser.email, name: localUser.name };
   }
   return null;
 }
 
-/**
- * Register a new user.
- * - If Supabase: signUp via Supabase Auth, then create local user record
- * - Fallback: local scrypt-based registration
- */
+// --- Register (local fallback only — Firebase users are created via Google sign-in) ---
+
 export async function registerUser(email: string, password: string, name?: string): Promise<{ user: AuthUser; token: string }> {
-  if (isSupabaseConfigured && supabase) {
-    // Supabase Auth signup
-    const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase(),
-      password,
-      options: {
-        data: { name: name || email.split('@')[0] },
-      },
-    });
-
-    if (error) {
-      if (error.message.includes('already registered') || error.message.includes('already exists')) {
-        throw new Error('An account with this email already exists');
-      }
-      throw new Error(error.message);
+  // Firebase mode: email/password registration
+  if (isFirebaseAdminConfigured && adminAuth) {
+    try {
+      const userRecord = await adminAuth.createUser({
+        email: email.toLowerCase(),
+        password,
+        displayName: name || email.split('@')[0],
+      });
+      await ensureLocalUser(userRecord.uid, userRecord.email!, name || email.split('@')[0]);
+      // Client will call signInWithPassword to get the token — we return a placeholder
+      return {
+        user: { id: userRecord.uid, email: userRecord.email!, name: name || email.split('@')[0] },
+        token: '__firebase_email_pw__',
+      };
+    } catch (err: any) {
+      if (err?.message?.includes('already exists')) throw new Error('An account with this email already exists');
+      throw new Error(err?.message || 'Registration failed');
     }
-
-    const sbUser = data.user;
-    if (!sbUser) throw new Error('Registration failed');
-
-    const token = data.session?.access_token || '';
-
-    // Create local user record for data relations
-    await ensureLocalUser(sbUser.id, sbUser.email!, name || email.split('@')[0]);
-
-    return {
-      user: { id: sbUser.id, email: sbUser.email!, name: name || email.split('@')[0] },
-      token,
-    };
   }
 
-  // Fallback: local registration
+  // Local fallback
   const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) throw new Error('An account with this email already exists');
 
   const passwordHash = await hashPassword(password);
   const user = await db.user.create({
-    data: {
-      email: email.toLowerCase(),
-      name: name || email.split('@')[0],
-      passwordHash,
-    },
+    data: { email: email.toLowerCase(), name: name || email.split('@')[0], passwordHash },
   });
-
-  const token = await createSession(user.id);
-  return {
-    user: { id: user.id, email: user.email, name: user.name },
-    token,
-  };
-}
-
-/**
- * Login a user.
- * - If Supabase: signInWithPassword, then ensure local user record
- * - Fallback: local scrypt-based login
- */
-export async function loginUser(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase(),
-      password,
-    });
-
-    if (error) {
-      if (error.message.includes('Invalid login') || error.message.includes('Invalid credentials')) {
-        throw new Error('Invalid email or password');
-      }
-      throw new Error(error.message);
-    }
-
-    const sbUser = data.user;
-    if (!sbUser) throw new Error('Login failed');
-
-    const token = data.session.access_token;
-
-    await ensureLocalUser(sbUser.id, sbUser.email!, sbUser.user_metadata?.name || sbUser.user_metadata?.full_name || null);
-
-    return {
-      user: {
-        id: sbUser.id,
-        email: sbUser.email!,
-        name: sbUser.user_metadata?.name || sbUser.user_metadata?.full_name || null,
-      },
-      token,
-    };
-  }
-
-  // Fallback: local login
-  const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (!user) throw new Error('Invalid email or password');
-
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) throw new Error('Invalid email or password');
-
   const token = await createSession(user.id);
   return { user: { id: user.id, email: user.email, name: user.name }, token };
 }
 
-/**
- * Logout.
- * - If Supabase: sign out + delete local session
- * - Fallback: delete local session
- */
-export async function logoutUser(token: string): Promise<void> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch {
-      // Continue even if Supabase signout fails
-    }
+// --- Login ---
+
+export async function loginUser(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
+  // Firebase mode: client handles signInWithPassword, server just verifies the token
+  // So for email/password in Firebase mode, we tell client to do it client-side
+  if (isFirebaseAdminConfigured && adminAuth) {
+    throw new Error('__USE_FIREBASE_CLIENT__');
   }
 
-  // Always try to clean up local session too
-  try {
-    await deleteSession(token);
-  } catch {
-    // Token might be a Supabase JWT, not in local sessions table
-  }
+  // Local fallback
+  const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!user) throw new Error('Invalid email or password');
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) throw new Error('Invalid email or password');
+  const token = await createSession(user.id);
+  return { user: { id: user.id, email: user.email, name: user.name }, token };
 }
 
-// --- Internal helpers ---
+// --- Firebase Google sign-in token exchange ---
 
-/**
- * Ensure a user record exists in the local DB for data relations (projects, audits).
- * This is needed because Supabase Auth manages users in a separate `auth.users` table.
- */
+export async function verifyFirebaseToken(idToken: string): Promise<{ user: AuthUser; token: string }> {
+  if (!isFirebaseAdminConfigured || !adminAuth) {
+    throw new Error('Firebase is not configured');
+  }
+
+  const decoded = await adminAuth.verifyIdToken(idToken);
+  if (!decoded) throw new Error('Invalid token');
+
+  await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
+
+  return {
+    user: { id: decoded.uid, email: decoded.email || '', name: decoded.name || null },
+    token: idToken,
+  };
+}
+
+// --- Logout ---
+
+export async function logoutUser(token: string): Promise<void> {
+  // Always clean up local sessions
+  try { await deleteSession(token); } catch { /* might be a Firebase JWT */ }
+  // Firebase tokens are stateless — client just discards them
+}
+
+// --- Internal: ensure local user record for DB relations ---
+
 async function ensureLocalUser(id: string, email: string, name: string | null): Promise<void> {
   const existing = await db.user.findUnique({ where: { id } });
   if (!existing) {
     await db.user.create({
-      data: {
-        id,
-        email: email.toLowerCase(),
-        name,
-        passwordHash: '__supabase__', // Placeholder, actual auth is handled by Supabase
-      },
+      data: { id, email: email.toLowerCase(), name, passwordHash: '__firebase__' },
     });
-  } else {
-    // Update name if it changed
-    if (name && existing.name !== name) {
-      await db.user.update({ where: { id }, data: { name } });
-    }
+  } else if (name && existing.name !== name) {
+    await db.user.update({ where: { id }, data: { name } });
   }
 }
