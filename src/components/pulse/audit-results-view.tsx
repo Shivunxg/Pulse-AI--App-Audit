@@ -14,14 +14,22 @@ import {
   AlertCircle, FileText, Lightbulb, Target, Zap, ChevronDown, ChevronUp,
   Gauge, Search, Eye, Shield, MousePointer, XCircle,
 } from 'lucide-react';
-import type { AuditFindings, AiSummary, Finding } from '@/types';
+import type { AuditFindings, AiSummary, AndroidFindings, Finding } from '@/types';
 
-const scoreConfig = [
+const webScoreConfig = [
   { key: 'performance' as const, label: 'Performance', icon: <Gauge className="h-4 w-4" /> },
   { key: 'seo' as const, label: 'SEO', icon: <Search className="h-4 w-4" /> },
   { key: 'accessibility' as const, label: 'Accessibility', icon: <Eye className="h-4 w-4" /> },
   { key: 'security' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
   { key: 'ux' as const, label: 'UX', icon: <MousePointer className="h-4 w-4" /> },
+];
+
+const androidScoreConfig = [
+  { key: 'security' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
+  { key: 'configuration' as const, label: 'Configuration', icon: <Search className="h-4 w-4" /> },
+  { key: 'privacy' as const, label: 'Privacy', icon: <Eye className="h-4 w-4" /> },
+  { key: 'codeQuality' as const, label: 'Code Quality', icon: <Gauge className="h-4 w-4" /> },
+  { key: 'performance' as const, label: 'Performance', icon: <AlertTriangle className="h-4 w-4" /> },
 ];
 
 function SeverityIcon({ severity }: { severity: string }) {
@@ -84,6 +92,9 @@ export function AuditResultsView() {
   const [audit, setAudit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+
+  const isAndroid = audit?.findings?.security !== undefined && audit?.findings?.configuration !== undefined;
+  const scoreConfig = isAndroid ? androidScoreConfig : webScoreConfig;
 
   const loadAudit = useCallback(() => {
     if (!token || !selectedProjectId || !selectedAuditId) return;
@@ -386,6 +397,124 @@ export function AuditResultsView() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Android-specific: Security details */}
+              {key === 'security' && findings.dangerousPermissions && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Permissions ({findings.totalPermissions})</CardTitle></CardHeader>
+                  <CardContent>
+                    {findings.dangerousPermissions.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-red-500 mb-1">Dangerous Permissions</p>
+                        <div className="flex flex-wrap gap-1">
+                          {findings.dangerousPermissions.map((p: string) => (
+                            <Badge key={p} variant="destructive" className="text-[10px] font-mono">{p.replace('android.permission.', '')}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {findings.hardcodedSecrets?.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-medium text-red-500 mb-1">Hardcoded Secrets</p>
+                        <div className="space-y-1">
+                          {findings.hardcodedSecrets.map((s: string, i: number) => (
+                            <p key={i} className="text-xs font-mono text-muted-foreground bg-red-50 dark:bg-red-950/20 rounded p-1.5">{s}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Android-specific: Configuration details */}
+              {key === 'configuration' && findings.packageName && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">App Information</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Package:</span></div>
+                      <div className="font-mono text-xs truncate">{findings.packageName}</div>
+                      {findings.versionName && <><div><span className="text-muted-foreground">Version:</span></div><div>{findings.versionName}</div></>}
+                      {findings.minSdkVersion != null && <><div><span className="text-muted-foreground">Min SDK:</span></div><div>{findings.minSdkVersion}</div></>}
+                      {findings.targetSdkVersion != null && <><div><span className="text-muted-foreground">Target SDK:</span></div><div>{findings.targetSdkVersion}</div></>}
+                      {findings.supportedArchitectures?.length > 0 && <><div><span className="text-muted-foreground">Architectures:</span></div><div>{findings.supportedArchitectures.join(', ')}</div></>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Android-specific: Privacy details */}
+              {key === 'privacy' && findings.trackersFound?.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Trackers &amp; SDKs</CardTitle></CardHeader>
+                  <CardContent>
+                    {findings.analyticsSdks?.length > 0 && (
+                      <div className="mb-2"><p className="text-xs font-medium mb-1">Analytics</p><div className="flex flex-wrap gap-1">{findings.analyticsSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+                    )}
+                    {findings.adSdks?.length > 0 && (
+                      <div className="mb-2"><p className="text-xs font-medium mb-1">Advertising</p><div className="flex flex-wrap gap-1">{findings.adSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+                    )}
+                    {findings.socialSdks?.length > 0 && (
+                      <div><p className="text-xs font-medium mb-1">Social</p><div className="flex flex-wrap gap-1">{findings.socialSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Android-specific: Code Quality details */}
+              {key === 'codeQuality' && findings.thirdPartyLibraries && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Libraries</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1">
+                      {findings.thirdPartyLibraries.map((lib: string) => (
+                        <Badge key={lib} variant="outline" className="text-xs font-mono">{lib}</Badge>
+                      ))}
+                    </div>
+                    {findings.nativeLibraries?.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-medium mb-1">Native Libraries ({findings.nativeLibraries.length})</p>
+                        <div className="flex flex-wrap gap-1">
+                          {findings.nativeLibraries.map((lib: string) => (
+                            <Badge key={lib} variant="secondary" className="text-xs font-mono">{lib}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Deep audit extras */}
+              {key === 'performance' && findings.fcp != null && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Core Web Vitals (Deep Audit)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {findings.fcp != null && <div><span className="text-muted-foreground">FCP:</span> <span className="font-bold">{findings.fcp}ms</span></div>}
+                      {findings.lcp != null && <div><span className="text-muted-foreground">LCP:</span> <span className="font-bold">{findings.lcp}ms</span></div>}
+                      {findings.cls != null && <div><span className="text-muted-foreground">CLS:</span> <span className="font-bold">{findings.cls}</span></div>}
+                      {findings.domNodes != null && <div><span className="text-muted-foreground">DOM Nodes:</span> <span className="font-bold">{findings.domNodes}</span></div>}
+                      {findings.consoleErrors != null && <div><span className="text-muted-foreground">Console Errors:</span> <span className="font-bold">{findings.consoleErrors}</span></div>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Deep audit SEO extras */}
+              {key === 'seo' && (findings.hasSitemap != null || findings.brokenLinks != null) && (
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">SEO Details (Deep Audit)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      {findings.hasSitemap != null && <div className="flex items-center gap-2">{findings.hasSitemap ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />} Sitemap found</div>}
+                      {findings.hasRobotsTxt != null && <div className="flex items-center gap-2">{findings.hasRobotsTxt ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />} robots.txt found</div>}
+                      {findings.brokenLinks != null && <div className="flex items-center gap-2">{findings.brokenLinks > 0 ? <XCircle className="h-4 w-4 text-red-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />} {findings.brokenLinks} broken links</div>}
                     </div>
                   </CardContent>
                 </Card>

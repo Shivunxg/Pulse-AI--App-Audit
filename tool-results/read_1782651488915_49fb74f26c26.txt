@@ -1,0 +1,545 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback } from 'react';
+     4→     4→import { useAppStore } from '@/store/use-app-store';
+     5→     5→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+     6→     6→import { Button } from '@/components/ui/button';
+     7→     7→import { Badge } from '@/components/ui/badge';
+     8→     8→import { Skeleton } from '@/components/ui/skeleton';
+     9→     9→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    10→    10→import { HealthScoreRing } from './health-score-ring';
+    11→    11→import { ScoreBar } from './score-bar';
+    12→    12→import {
+    13→    13→  ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Info,
+    14→    14→  AlertCircle, FileText, Lightbulb, Target, Zap, ChevronDown, ChevronUp,
+    15→    15→  Gauge, Search, Eye, Shield, MousePointer, XCircle,
+    16→    16→} from 'lucide-react';
+    17→    17→import type { AuditFindings, AiSummary, AndroidFindings, Finding } from '@/types';
+    18→    18→
+    19→    19→const webScoreConfig = [
+    20→    20→  { key: 'performance' as const, label: 'Performance', icon: <Gauge className="h-4 w-4" /> },
+    21→    21→  { key: 'seo' as const, label: 'SEO', icon: <Search className="h-4 w-4" /> },
+    22→    22→  { key: 'accessibility' as const, label: 'Accessibility', icon: <Eye className="h-4 w-4" /> },
+    23→    23→  { key: 'security' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
+    24→    24→  { key: 'ux' as const, label: 'UX', icon: <MousePointer className="h-4 w-4" /> },
+    25→    25→];
+    26→    26→
+    27→    27→const androidScoreConfig = [
+    28→    28→  { key: 'security' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
+    29→    29→  { key: 'configuration' as const, label: 'Configuration', icon: <Search className="h-4 w-4" /> },
+    30→    30→  { key: 'privacy' as const, label: 'Privacy', icon: <Eye className="h-4 w-4" /> },
+    31→    31→  { key: 'codeQuality' as const, label: 'Code Quality', icon: <Gauge className="h-4 w-4" /> },
+    32→    32→  { key: 'performance' as const, label: 'Performance', icon: <AlertTriangle className="h-4 w-4" /> },
+    33→    33→];
+    34→    34→
+    35→    35→function SeverityIcon({ severity }: { severity: string }) {
+    36→    36→  switch (severity) {
+    37→    37→    case 'critical': return <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />;
+    38→    38→    case 'warning': return <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />;
+    39→    39→    case 'info': return <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />;
+    40→    40→    case 'passed': return <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />;
+    41→    41→    default: return null;
+    42→    42→  }
+    43→    43→}
+    44→    44→
+    45→    45→function FindingCard({ finding }: { finding: Finding }) {
+    46→    46→  const [expanded, setExpanded] = useState(false);
+    47→    47→  return (
+    48→    48→    <div
+    49→    49→      className={`rounded-lg border p-3 transition-colors ${
+    50→    50→        finding.severity === 'critical' ? 'border-red-200 bg-red-50/50 dark:bg-red-950/10' :
+    51→    51→        finding.severity === 'warning' ? 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/10' :
+    52→    52→        finding.severity === 'passed' ? 'border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10' :
+    53→    53→        'border-muted'
+    54→    54→      }`}
+    55→    55→    >
+    56→    56→      <div className="flex items-start gap-2">
+    57→    57→        <SeverityIcon severity={finding.severity} />
+    58→    58→        <div className="flex-1 min-w-0">
+    59→    59→          <div className="flex items-center gap-2">
+    60→    60→            <span className="font-medium text-sm">{finding.title}</span>
+    61→    61→            <Badge
+    62→    62→              variant={finding.severity === 'critical' ? 'destructive' : 'secondary'}
+    63→    63→              className="text-[10px] px-1.5 py-0"
+    64→    64→            >
+    65→    65→              {finding.severity}
+    66→    66→            </Badge>
+    67→    67→          </div>
+    68→    68→          <p className="text-xs text-muted-foreground mt-1">{finding.description}</p>
+    69→    69→          {finding.recommendation && (
+    70→    70→            <button
+    71→    71→              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+    72→    72→              className="flex items-center gap-1 text-xs text-primary mt-1.5 hover:underline"
+    73→    73→            >
+    74→    74→              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+    75→    75→              {expanded ? 'Hide' : 'Show'} recommendation
+    76→    76→            </button>
+    77→    77→          )}
+    78→    78→          {expanded && finding.recommendation && (
+    79→    79→            <div className="mt-2 text-xs bg-background rounded p-2 border">
+    80→    80→              <span className="font-medium">Recommendation: </span>
+    81→    81→              {finding.recommendation}
+    82→    82→            </div>
+    83→    83→          )}
+    84→    84→        </div>
+    85→    85→      </div>
+    86→    86→    </div>
+    87→    87→  );
+    88→    88→}
+    89→    89→
+    90→    90→export function AuditResultsView() {
+    91→    91→  const { token, selectedProjectId, selectedAuditId, navigate } = useAppStore();
+    92→    92→  const [audit, setAudit] = useState<any>(null);
+    93→    93→  const [loading, setLoading] = useState(true);
+    94→    94→  const [activeTab, setActiveTab] = useState('overview');
+    95→    95→
+    96→    96→  const isAndroid = audit?.findings?.security !== undefined && audit?.findings?.configuration !== undefined;
+    97→    97→  const scoreConfig = isAndroid ? androidScoreConfig : webScoreConfig;
+    98→    98→
+    99→    99→  const loadAudit = useCallback(() => {
+   100→   100→    if (!token || !selectedProjectId || !selectedAuditId) return;
+   101→   101→    fetch(`/api/projects/${selectedProjectId}/audits/${selectedAuditId}`, {
+   102→   102→      headers: { Authorization: `Bearer ${token}` },
+   103→   103→    })
+   104→   104→      .then((r) => r.json())
+   105→   105→      .then((data) => {
+   106→   106→        if (data.audit) {
+   107→   107→          setAudit(data.audit);
+   108→   108→          if (data.audit.status === 'completed') setActiveTab('overview');
+   109→   109→        }
+   110→   110→      })
+   111→   111→      .catch(console.error)
+   112→   112→      .finally(() => setLoading(false));
+   113→   113→  }, [token, selectedProjectId, selectedAuditId]);
+   114→   114→
+   115→   115→  useEffect(() => { loadAudit(); }, [loadAudit]);
+   116→   116→
+   117→   117→  if (loading) {
+   118→   118→    return (
+   119→   119→      <div className="space-y-6">
+   120→   120→        <Skeleton className="h-8 w-64" />
+   121→   121→        <Skeleton className="h-48 w-full" />
+   122→   122→        <Skeleton className="h-64 w-full" />
+   123→   123→      </div>
+   124→   124→    );
+   125→   125→  }
+   126→   126→
+   127→   127→  if (!audit) {
+   128→   128→    return (
+   129→   129→      <div className="text-center py-16">
+   130→   130→        <p className="text-muted-foreground">Audit not found.</p>
+   131→   131→        <Button variant="outline" className="mt-4" onClick={() => navigate('projects')}>
+   132→   132→          <ArrowLeft className="h-4 w-4 mr-2" /> Back
+   133→   133→        </Button>
+   134→   134→      </div>
+   135→   135→    );
+   136→   136→  }
+   137→   137→
+   138→   138→  if (audit.status === 'running') {
+   139→   139→    return (
+   140→   140→      <div className="space-y-6">
+   141→   141→        <Button variant="ghost" onClick={() => navigate('project-detail', selectedProjectId!)}>
+   142→   142→          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Project
+   143→   143→        </Button>
+   144→   144→        <Card>
+   145→   145→          <CardContent className="py-16 text-center">
+   146→   146→            <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+   147→   147→            <p className="text-lg font-medium">Audit in Progress</p>
+   148→   148→            <p className="text-sm text-muted-foreground mt-2">
+   149→   149→              Running deterministic analysis and AI interpretation...
+   150→   150→            </p>
+   151→   151→            <Button
+   152→   152→              variant="outline"
+   153→   153→              className="mt-6"
+   154→   154→              onClick={loadAudit}
+   155→   155→            >
+   156→   156→              <Zap className="h-4 w-4 mr-2" /> Refresh
+   157→   157→            </Button>
+   158→   158→          </CardContent>
+   159→   159→        </Card>
+   160→   160→      </div>
+   161→   161→    );
+   162→   162→  }
+   163→   163→
+   164→   164→  const findings = audit.findings as AuditFindings | null;
+   165→   165→  const summary = audit.aiSummary as AiSummary | null;
+   166→   166→
+   167→   167→  const handleExportPdf = () => {
+   168→   168→    // Navigate to project detail which has the export button
+   169→   169→    navigate('project-detail', selectedProjectId!);
+   170→   170→  };
+   171→   171→
+   172→   172→  return (
+   173→   173→    <div className="space-y-6">
+   174→   174→      {/* Header */}
+   175→   175→      <div className="flex items-start gap-3">
+   176→   176→        <Button
+   177→   177→          variant="ghost"
+   178→   178→          size="icon"
+   179→   179→          onClick={() => navigate('project-detail', selectedProjectId!)}
+   180→   180→          className="shrink-0 mt-0.5"
+   181→   181→        >
+   182→   182→          <ArrowLeft className="h-4 w-4" />
+   183→   183→        </Button>
+   184→   184→        <div className="flex-1">
+   185→   185→          <h1 className="text-2xl font-bold tracking-tight">Audit Results</h1>
+   186→   186→          <p className="text-sm text-muted-foreground mt-1">
+   187→   187→            {new Date(audit.createdAt).toLocaleString()}
+   188→   188→            {audit.responseTime != null && ` · Response: ${Math.round(audit.responseTime)}ms`}
+   189→   189→            {audit.pageSize != null && ` · Size: ${(audit.pageSize / 1024).toFixed(0)}KB`}
+   190→   190→          </p>
+   191→   191→        </div>
+   192→   192→        <Button variant="outline" size="sm" onClick={handleExportPdf}>
+   193→   193→          <FileText className="h-4 w-4 mr-2" /> Export PDF
+   194→   194→        </Button>
+   195→   195→      </div>
+   196→   196→
+   197→   197→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+   198→   198→        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+   199→   199→          <TabsTrigger value="overview">Overview</TabsTrigger>
+   200→   200→          {scoreConfig.map(({ key, label }) => (
+   201→   201→            <TabsTrigger key={key} value={key} className="hidden lg:flex items-center gap-1.5">
+   202→   202→              {label}
+   203→   203→            </TabsTrigger>
+   204→   204→          ))}
+   205→   205→        </TabsList>
+   206→   206→
+   207→   207→        {/* Overview Tab */}
+   208→   208→        <TabsContent value="overview" className="space-y-6 mt-4">
+   209→   209→          {/* Health Score + Sub-scores */}
+   210→   210→          <Card>
+   211→   211→            <CardContent className="p-6">
+   212→   212→              <div className="flex flex-col md:flex-row items-center gap-8">
+   213→   213→                <HealthScoreRing score={audit.healthScore || 0} size={150} strokeWidth={12} label="Product Health Score" />
+   214→   214→                <div className="flex-1 w-full space-y-4">
+   215→   215→                  {scoreConfig.map(({ key, label, icon }) => {
+   216→   216→                    const score = audit[`${key}Score` as keyof typeof audit] as number || 0;
+   217→   217→                    return <ScoreBar key={key} label={label} score={score} icon={icon} />;
+   218→   218→                  })}
+   219→   219→                </div>
+   220→   220→              </div>
+   221→   221→            </CardContent>
+   222→   222→          </Card>
+   223→   223→
+   224→   224→          {/* AI Summary */}
+   225→   225→          {summary && summary.executiveSummary && (
+   226→   226→            <Card>
+   227→   227→              <CardHeader className="pb-3">
+   228→   228→                <div className="flex items-center gap-2">
+   229→   229→                  <Lightbulb className="h-5 w-5 text-amber-500" />
+   230→   230→                  <CardTitle className="text-base">AI-Powered Insights</CardTitle>
+   231→   231→                </div>
+   232→   232→              </CardHeader>
+   233→   233→              <CardContent className="space-y-4">
+   234→   234→                <div>
+   235→   235→                  <h3 className="text-sm font-semibold mb-1">Executive Summary</h3>
+   236→   236→                  <p className="text-sm text-muted-foreground">{summary.executiveSummary}</p>
+   237→   237→                </div>
+   238→   238→
+   239→   239→                {summary.keyStrengths?.length > 0 && (
+   240→   240→                  <div>
+   241→   241→                    <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+   242→   242→                      <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Key Strengths
+   243→   243→                    </h3>
+   244→   244→                    <ul className="space-y-1">
+   245→   245→                      {summary.keyStrengths.map((s, i) => (
+   246→   246→                        <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+   247→   247→                          <span className="text-emerald-500 mt-0.5">+</span> {s}
+   248→   248→                        </li>
+   249→   249→                      ))}
+   250→   250→                    </ul>
+   251→   251→                  </div>
+   252→   252→                )}
+   253→   253→
+   254→   254→                {summary.criticalIssues?.length > 0 && (
+   255→   255→                  <div>
+   256→   256→                    <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+   257→   257→                      <AlertCircle className="h-4 w-4 text-red-500" /> Critical Issues
+   258→   258→                    </h3>
+   259→   259→                    <ul className="space-y-1">
+   260→   260→                      {summary.criticalIssues.map((s, i) => (
+   261→   261→                        <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+   262→   262→                          <span className="text-red-500 mt-0.5">!</span> {s}
+   263→   263→                        </li>
+   264→   264→                      ))}
+   265→   265→                    </ul>
+   266→   266→                  </div>
+   267→   267→                )}
+   268→   268→
+   269→   269→                {summary.priorityActions?.length > 0 && (
+   270→   270→                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+   271→   271→                    <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+   272→   272→                      <Target className="h-4 w-4 text-amber-600" /> Priority Actions This Week
+   273→   273→                    </h3>
+   274→   274→                    <ol className="space-y-1 list-decimal list-inside">
+   275→   275→                      {summary.priorityActions.map((a, i) => (
+   276→   276→                        <li key={i} className="text-sm">{a}</li>
+   277→   277→                      ))}
+   278→   278→                    </ol>
+   279→   279→                  </div>
+   280→   280→                )}
+   281→   281→
+   282→   282→                {summary.recommendations?.length > 0 && (
+   283→   283→                  <div>
+   284→   284→                    <h3 className="text-sm font-semibold mb-2">All Recommendations</h3>
+   285→   285→                    <ul className="space-y-1">
+   286→   286→                      {summary.recommendations.map((r, i) => (
+   287→   287→                        <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+   288→   288→                          <span className="text-primary mt-0.5">{i + 1}.</span> {r}
+   289→   289→                        </li>
+   290→   290→                      ))}
+   291→   291→                    </ul>
+   292→   292→                  </div>
+   293→   293→                )}
+   294→   294→              </CardContent>
+   295→   295→            </Card>
+   296→   296→          )}
+   297→   297→
+   298→   298→          {/* Quick findings summary */}
+   299→   299→          {findings && (
+   300→   300→            <Card>
+   301→   301→              <CardHeader className="pb-3">
+   302→   302→                <CardTitle className="text-base">Findings Summary</CardTitle>
+   303→   303→              </CardHeader>
+   304→   304→              <CardContent>
+   305→   305→                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+   306→   306→                  {scoreConfig.map(({ key, label }) => {
+   307→   307→                    const cat = findings[key];
+   308→   308→                    const criticals = cat.issues.filter(i => i.severity === 'critical').length;
+   309→   309→                    const warnings = cat.issues.filter(i => i.severity === 'warning').length;
+   310→   310→                    const passed = cat.passed.length;
+   311→   311→                    return (
+   312→   312→                      <button
+   313→   313→                        key={key}
+   314→   314→                        className="text-left rounded-lg border p-3 hover:bg-accent/50 transition-colors"
+   315→   315→                        onClick={() => setActiveTab(key)}
+   316→   316→                      >
+   317→   317→                        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+   318→   318→                        <div className="flex items-center gap-2 mt-1">
+   319→   319→                          {criticals > 0 && (
+   320→   320→                            <span className="text-xs font-bold text-red-500">{criticals} critical</span>
+   321→   321→                          )}
+   322→   322→                          {warnings > 0 && (
+   323→   323→                            <span className="text-xs font-medium text-amber-500">{warnings} warning{warnings > 1 ? 's' : ''}</span>
+   324→   324→                          )}
+   325→   325→                          {criticals === 0 && warnings === 0 && passed > 0 && (
+   326→   326→                            <span className="text-xs font-medium text-emerald-500">{passed} passed</span>
+   327→   327→                          )}
+   328→   328→                        </div>
+   329→   329→                      </button>
+   330→   330→                    );
+   331→   331→                  })}
+   332→   332→                </div>
+   333→   333→              </CardContent>
+   334→   334→            </Card>
+   335→   335→          )}
+   336→   336→        </TabsContent>
+   337→   337→
+   338→   338→        {/* Category Tabs */}
+   339→   339→        {scoreConfig.map(({ key, label }) => {
+   340→   340→          const cat = findings?.[key];
+   341→   341→          if (!cat) return null;
+   342→   342→          const allFindings = [...cat.issues, ...cat.passed];
+   343→   343→          const criticals = cat.issues.filter(i => i.severity === 'critical');
+   344→   344→          const warnings = cat.issues.filter(i => i.severity === 'warning');
+   345→   345→          const infos = cat.issues.filter(i => i.severity === 'info');
+   346→   346→
+   347→   347→          return (
+   348→   348→            <TabsContent key={key} value={key} className="space-y-4 mt-4">
+   349→   349→              <Card>
+   350→   350→                <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-4">
+   351→   351→                  <HealthScoreRing score={cat.score} size={80} strokeWidth={6} label={label} />
+   352→   352→                  <div className="flex-1 space-y-2 w-full">
+   353→   353→                    <div className="flex gap-4 text-sm">
+   354→   354→                      {criticals.length > 0 && <span className="flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 text-red-500" /> <strong>{criticals.length}</strong> critical</span>}
+   355→   355→                      {warnings.length > 0 && <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> <strong>{warnings.length}</strong> warning{warnings.length !== 1 ? 's' : ''}</span>}
+   356→   356→                      {infos.length > 0 && <span className="flex items-center gap-1"><Info className="h-3.5 w-3.5 text-blue-500" /> <strong>{infos.length}</strong> info</span>}
+   357→   357→                      <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <strong>{cat.passed.length}</strong> passed</span>
+   358→   358→                    </div>
+   359→   359→                    <ScoreBar label={label} score={cat.score} />
+   360→   360→                  </div>
+   361→   361→                </CardContent>
+   362→   362→              </Card>
+   363→   363→
+   364→   364→              {key === 'seo' && findings.seo.headingStructure?.length > 0 && (
+   365→   365→                <Card>
+   366→   366→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Heading Structure</CardTitle></CardHeader>
+   367→   367→                  <CardContent>
+   368→   368→                    <div className="space-y-1 max-h-48 overflow-y-auto">
+   369→   369→                      {findings.seo.headingStructure.map((h, i) => (
+   370→   370→                        <div key={i} className="flex items-center gap-2" style={{ paddingLeft: `${(h.level - 1) * 16}px` }}>
+   371→   371→                          <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 shrink-0">H{h.level}</Badge>
+   372→   372→                          <span className="text-sm truncate">{h.text}</span>
+   373→   373→                        </div>
+   374→   374→                      ))}
+   375→   375→                    </div>
+   376→   376→                  </CardContent>
+   377→   377→                </Card>
+   378→   378→              )}
+   379→   379→
+   380→   380→              {key === 'security' && findings.security.headers && (
+   381→   381→                <Card>
+   382→   382→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Security Headers</CardTitle></CardHeader>
+   383→   383→                  <CardContent>
+   384→   384→                    <div className="space-y-2">
+   385→   385→                      {Object.entries(findings.security.headers).map(([header, value]) => (
+   386→   386→                        <div key={header} className="flex items-start gap-2 text-sm">
+   387→   387→                          {value ? (
+   388→   388→                            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+   389→   389→                          ) : (
+   390→   390→                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+   391→   391→                          )}
+   392→   392→                          <div>
+   393→   393→                            <span className="font-mono font-medium">{header}</span>
+   394→   394→                            {value && (
+   395→   395→                              <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">{value}</p>
+   396→   396→                            )}
+   397→   397→                          </div>
+   398→   398→                        </div>
+   399→   399→                      ))}
+   400→   400→                    </div>
+   401→   401→                  </CardContent>
+   402→   402→                </Card>
+   403→   403→              )}
+   404→   404→
+   405→   405→              {/* Android-specific: Security details */}
+   406→   406→              {key === 'security' && findings.dangerousPermissions && (
+   407→   407→                <Card>
+   408→   408→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Permissions ({findings.totalPermissions})</CardTitle></CardHeader>
+   409→   409→                  <CardContent>
+   410→   410→                    {findings.dangerousPermissions.length > 0 && (
+   411→   411→                      <div className="mb-3">
+   412→   412→                        <p className="text-xs font-medium text-red-500 mb-1">Dangerous Permissions</p>
+   413→   413→                        <div className="flex flex-wrap gap-1">
+   414→   414→                          {findings.dangerousPermissions.map((p: string) => (
+   415→   415→                            <Badge key={p} variant="destructive" className="text-[10px] font-mono">{p.replace('android.permission.', '')}</Badge>
+   416→   416→                          ))}
+   417→   417→                        </div>
+   418→   418→                      </div>
+   419→   419→                    )}
+   420→   420→                    {findings.hardcodedSecrets?.length > 0 && (
+   421→   421→                      <div className="mt-3">
+   422→   422→                        <p className="text-xs font-medium text-red-500 mb-1">Hardcoded Secrets</p>
+   423→   423→                        <div className="space-y-1">
+   424→   424→                          {findings.hardcodedSecrets.map((s: string, i: number) => (
+   425→   425→                            <p key={i} className="text-xs font-mono text-muted-foreground bg-red-50 dark:bg-red-950/20 rounded p-1.5">{s}</p>
+   426→   426→                          ))}
+   427→   427→                        </div>
+   428→   428→                      </div>
+   429→   429→                    )}
+   430→   430→                  </CardContent>
+   431→   431→                </Card>
+   432→   432→              )}
+   433→   433→
+   434→   434→              {/* Android-specific: Configuration details */}
+   435→   435→              {key === 'configuration' && findings.packageName && (
+   436→   436→                <Card>
+   437→   437→                  <CardHeader className="pb-2"><CardTitle className="text-sm">App Information</CardTitle></CardHeader>
+   438→   438→                  <CardContent>
+   439→   439→                    <div className="grid grid-cols-2 gap-2 text-sm">
+   440→   440→                      <div><span className="text-muted-foreground">Package:</span></div>
+   441→   441→                      <div className="font-mono text-xs truncate">{findings.packageName}</div>
+   442→   442→                      {findings.versionName && <><div><span className="text-muted-foreground">Version:</span></div><div>{findings.versionName}</div></>}
+   443→   443→                      {findings.minSdkVersion != null && <><div><span className="text-muted-foreground">Min SDK:</span></div><div>{findings.minSdkVersion}</div></>}
+   444→   444→                      {findings.targetSdkVersion != null && <><div><span className="text-muted-foreground">Target SDK:</span></div><div>{findings.targetSdkVersion}</div></>}
+   445→   445→                      {findings.supportedArchitectures?.length > 0 && <><div><span className="text-muted-foreground">Architectures:</span></div><div>{findings.supportedArchitectures.join(', ')}</div></>}
+   446→   446→                    </div>
+   447→   447→                  </CardContent>
+   448→   448→                </Card>
+   449→   449→              )}
+   450→   450→
+   451→   451→              {/* Android-specific: Privacy details */}
+   452→   452→              {key === 'privacy' && findings.trackersFound?.length > 0 && (
+   453→   453→                <Card>
+   454→   454→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Trackers &amp; SDKs</CardTitle></CardHeader>
+   455→   455→                  <CardContent>
+   456→   456→                    {findings.analyticsSdks?.length > 0 && (
+   457→   457→                      <div className="mb-2"><p className="text-xs font-medium mb-1">Analytics</p><div className="flex flex-wrap gap-1">{findings.analyticsSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+   458→   458→                    )}
+   459→   459→                    {findings.adSdks?.length > 0 && (
+   460→   460→                      <div className="mb-2"><p className="text-xs font-medium mb-1">Advertising</p><div className="flex flex-wrap gap-1">{findings.adSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+   461→   461→                    )}
+   462→   462→                    {findings.socialSdks?.length > 0 && (
+   463→   463→                      <div><p className="text-xs font-medium mb-1">Social</p><div className="flex flex-wrap gap-1">{findings.socialSdks.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
+   464→   464→                    )}
+   465→   465→                  </CardContent>
+   466→   466→                </Card>
+   467→   467→              )}
+   468→   468→
+   469→   469→              {/* Android-specific: Code Quality details */}
+   470→   470→              {key === 'codeQuality' && findings.thirdPartyLibraries && (
+   471→   471→                <Card>
+   472→   472→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Libraries</CardTitle></CardHeader>
+   473→   473→                  <CardContent>
+   474→   474→                    <div className="flex flex-wrap gap-1">
+   475→   475→                      {findings.thirdPartyLibraries.map((lib: string) => (
+   476→   476→                        <Badge key={lib} variant="outline" className="text-xs font-mono">{lib}</Badge>
+   477→   477→                      ))}
+   478→   478→                    </div>
+   479→   479→                    {findings.nativeLibraries?.length > 0 && (
+   480→   480→                      <div className="mt-3">
+   481→   481→                        <p className="text-xs font-medium mb-1">Native Libraries ({findings.nativeLibraries.length})</p>
+   482→   482→                        <div className="flex flex-wrap gap-1">
+   483→   483→                          {findings.nativeLibraries.map((lib: string) => (
+   484→   484→                            <Badge key={lib} variant="secondary" className="text-xs font-mono">{lib}</Badge>
+   485→   485→                          ))}
+   486→   486→                        </div>
+   487→   487→                      </div>
+   488→   488→                    )}
+   489→   489→                  </CardContent>
+   490→   490→                </Card>
+   491→   491→              )}
+   492→   492→
+   493→   493→              {/* Deep audit extras */}
+   494→   494→              {key === 'performance' && findings.fcp != null && (
+   495→   495→                <Card>
+   496→   496→                  <CardHeader className="pb-2"><CardTitle className="text-sm">Core Web Vitals (Deep Audit)</CardTitle></CardHeader>
+   497→   497→                  <CardContent>
+   498→   498→                    <div className="grid grid-cols-2 gap-3 text-sm">
+   499→   499→                      {findings.fcp != null && <div><span className="text-muted-foreground">FCP:</span> <span className="font-bold">{findings.fcp}ms</span></div>}
+   500→   500→                      {findings.lcp != null && <div><span className="text-muted-foreground">LCP:</span> <span className="font-bold">{findings.lcp}ms</span></div>}
+   501→   501→                      {findings.cls != null && <div><span className="text-muted-foreground">CLS:</span> <span className="font-bold">{findings.cls}</span></div>}
+   502→   502→                      {findings.domNodes != null && <div><span className="text-muted-foreground">DOM Nodes:</span> <span className="font-bold">{findings.domNodes}</span></div>}
+   503→   503→                      {findings.consoleErrors != null && <div><span className="text-muted-foreground">Console Errors:</span> <span className="font-bold">{findings.consoleErrors}</span></div>}
+   504→   504→                    </div>
+   505→   505→                  </CardContent>
+   506→   506→                </Card>
+   507→   507→              )}
+   508→   508→
+   509→   509→              {/* Deep audit SEO extras */}
+   510→   510→              {key === 'seo' && (findings.hasSitemap != null || findings.brokenLinks != null) && (
+   511→   511→                <Card>
+   512→   512→                  <CardHeader className="pb-2"><CardTitle className="text-sm">SEO Details (Deep Audit)</CardTitle></CardHeader>
+   513→   513→                  <CardContent>
+   514→   514→                    <div className="space-y-2 text-sm">
+   515→   515→                      {findings.hasSitemap != null && <div className="flex items-center gap-2">{findings.hasSitemap ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />} Sitemap found</div>}
+   516→   516→                      {findings.hasRobotsTxt != null && <div className="flex items-center gap-2">{findings.hasRobotsTxt ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />} robots.txt found</div>}
+   517→   517→                      {findings.brokenLinks != null && <div className="flex items-center gap-2">{findings.brokenLinks > 0 ? <XCircle className="h-4 w-4 text-red-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />} {findings.brokenLinks} broken links</div>}
+   518→   518→                    </div>
+   519→   519→                  </CardContent>
+   520→   520→                </Card>
+   521→   521→              )}
+   522→   522→
+   523→   523→              <Card>
+   524→   524→                <CardHeader className="pb-2">
+   525→   525→                  <CardTitle className="text-sm">
+   526→   526→                    Issues & Findings ({allFindings.length})
+   527→   527→                  </CardTitle>
+   528→   528→                </CardHeader>
+   529→   529→                <CardContent>
+   530→   530→                  {allFindings.length === 0 ? (
+   531→   531→                    <p className="text-sm text-muted-foreground text-center py-4">No findings in this category.</p>
+   532→   532→                  ) : (
+   533→   533→                    <div className="space-y-2 max-h-[500px] overflow-y-auto">
+   534→   534→                      {allFindings.map((f, i) => <FindingCard key={i} finding={f} />)}
+   535→   535→                    </div>
+   536→   536→                  )}
+   537→   537→                </CardContent>
+   538→   538→              </Card>
+   539→   539→            </TabsContent>
+   540→   540→          );
+   541→   541→        })}
+   542→   542→      </Tabs>
+   543→   543→    </div>
+   544→   544→  );
+   545→   545→}

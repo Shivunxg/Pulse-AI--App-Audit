@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { runAudit } from '@/lib/audit-engine';
+import { runDeepAudit } from '@/lib/playwright-audit';
 import { generateAiSummary } from '@/lib/ai-summary';
 
 export async function POST(
@@ -20,17 +21,23 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    if (project.type !== 'website') {
+      return NextResponse.json({ error: 'Use the APK upload endpoint for Android projects' }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const mode = body.mode === 'deep' ? 'deep' : 'simple';
+
     const audit = await db.audit.create({
-      data: {
-        projectId: id,
-        status: 'running',
-      },
+      data: { projectId: id, status: 'running', mode },
     });
 
-    // Run audit asynchronously — update DB when done
+    // Run audit asynchronously
     (async () => {
       try {
-        const result = await runAudit(project.url);
+        const result = mode === 'deep'
+          ? await runDeepAudit(project.url)
+          : await runAudit(project.url);
 
         let aiSummaryJson = '{}';
         try {
@@ -58,15 +65,12 @@ export async function POST(
         });
       } catch (err) {
         console.error('Audit execution error:', err);
-        await db.audit.update({
-          where: { id: audit.id },
-          data: { status: 'failed' },
-        });
+        await db.audit.update({ where: { id: audit.id }, data: { status: 'failed' } });
       }
     })();
 
     return NextResponse.json({
-      audit: { id: audit.id, status: 'running', createdAt: audit.createdAt },
+      audit: { id: audit.id, status: 'running', mode, createdAt: audit.createdAt },
     }, { status: 202 });
   } catch (err) {
     console.error('Audit trigger error:', err);

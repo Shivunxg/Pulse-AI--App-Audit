@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         id: p.id,
         name: p.name,
         url: p.url,
+        type: p.type,
         auditCount: p._count.audits,
         latestAudit: p.audits[0] ? {
           id: p.audits[0].id,
@@ -50,19 +51,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { name, url } = await request.json();
-    if (!name || !url) {
-      return NextResponse.json({ error: 'Name and URL are required' }, { status: 400 });
+    const { name, url, type } = await request.json();
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+    if (type !== 'android' && !url) {
+      return NextResponse.json({ error: 'URL is required for website projects' }, { status: 400 });
     }
 
-    const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
+    const projectType = type === 'android' ? 'android' : 'website';
+    const normalizedUrl = url ? (url.startsWith('http') ? url : `https://${url}`) : `android-app://${name.toLowerCase().replace(/\s+/g, '-')}`;
 
     const project = await db.project.create({
-      data: { name, url: normalizedUrl, userId: user.id },
+      data: { name, url: normalizedUrl, type: projectType, userId: user.id },
     });
 
     return NextResponse.json({
-      project: { id: project.id, name: project.name, url: project.url, createdAt: project.createdAt },
+      project: { id: project.id, name: project.name, url: project.url, type: project.type, createdAt: project.createdAt },
     }, { status: 201 });
   } catch (err) {
     console.error('Project create error:', err);

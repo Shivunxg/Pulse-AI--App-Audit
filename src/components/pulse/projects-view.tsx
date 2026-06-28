@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { HealthScoreRing } from './health-score-ring';
 import {
-  Plus, Globe, Trash2, Loader2, Activity, ChevronRight, ExternalLink,
+  Plus, Globe, Trash2, Loader2, ChevronRight,
+  Smartphone, Monitor, Upload, FileUp,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -21,6 +23,7 @@ interface Project {
   id: string;
   name: string;
   url: string;
+  type: string;
   auditCount: number;
   latestAudit: { id: string; status: string; healthScore: number | null; createdAt: string } | null;
   createdAt: string;
@@ -33,6 +36,7 @@ export function ProjectsView() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [projectType, setProjectType] = useState('website');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,16 +56,20 @@ export function ProjectsView() {
     setError('');
     setCreating(true);
     try {
+      const body: Record<string, string> = { name: newName, type: projectType };
+      if (projectType === 'website') body.url = newUrl;
+
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: newName, url: newUrl }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Failed to create project'); return; }
+      if (!res.ok) { setError(data.error || 'Failed'); return; }
       setDialogOpen(false);
       setNewName('');
       setNewUrl('');
+      setProjectType('website');
       loadProjects();
     } catch { setError('Network error'); }
     finally { setCreating(false); }
@@ -79,15 +87,14 @@ export function ProjectsView() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage websites you want to audit
+            Audit websites (simple &amp; deep) and Android APKs
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setError(''); }}>
           <DialogTrigger asChild>
             <Button className="shrink-0">
               <Plus className="h-4 w-4 mr-2" /> New Project
@@ -96,22 +103,47 @@ export function ProjectsView() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Project</DialogTitle>
-              <DialogDescription>Enter a name and URL for the website you want to audit.</DialogDescription>
+              <DialogDescription>Choose a platform type and provide the required information.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              <RadioGroup value={projectType} onValueChange={(v) => { setProjectType(v); setError(''); }}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="website" id="type-website" />
+                  <Label htmlFor="type-website" className="flex items-center gap-2 cursor-pointer">
+                    <Monitor className="h-4 w-4" /> Website
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="android" id="type-android" />
+                  <Label htmlFor="type-android" className="flex items-center gap-2 cursor-pointer">
+                    <Smartphone className="h-4 w-4" /> Android App (APK)
+                  </Label>
+                </div>
+              </RadioGroup>
+
               <div className="space-y-2">
                 <Label htmlFor="proj-name">Project Name</Label>
-                <Input id="proj-name" placeholder="My Website" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <Input id="proj-name" placeholder={projectType === 'android' ? 'My App' : 'My Website'} value={newName} onChange={(e) => setNewName(e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="proj-url">Website URL</Label>
-                <Input id="proj-url" placeholder="https://example.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
-              </div>
+
+              {projectType === 'website' && (
+                <div className="space-y-2">
+                  <Label htmlFor="proj-url">Website URL</Label>
+                  <Input id="proj-url" placeholder="https://example.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+                </div>
+              )}
+
+              {projectType === 'android' && (
+                <div className="rounded-lg border p-3 bg-muted/50 text-sm text-muted-foreground">
+                  After creating the project, you can upload an APK file to start the audit.
+                </div>
+              )}
+
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={creating || !newName || !newUrl}>
+              <Button onClick={handleCreate} disabled={creating || !newName}>
                 {creating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Create Project
               </Button>
@@ -120,7 +152,6 @@ export function ProjectsView() {
         </Dialog>
       </div>
 
-      {/* Project List */}
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {[1, 2, 3].map((i) => (
@@ -132,7 +163,7 @@ export function ProjectsView() {
           <CardContent className="py-16 text-center">
             <Globe className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
             <p className="font-medium text-muted-foreground">No projects yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Add a website to start auditing.</p>
+            <p className="text-sm text-muted-foreground mt-1">Add a website or Android app to start auditing.</p>
             <Button className="mt-4" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> Add First Project
             </Button>
@@ -150,14 +181,20 @@ export function ProjectsView() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      {project.type === 'android' ? (
+                        <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
+                      ) : (
+                        <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
                       <h3 className="font-semibold text-sm truncate">{project.name}</h3>
                       <Badge variant="secondary" className="text-xs shrink-0">
                         {project.auditCount} audit{project.auditCount !== 1 ? 's' : ''}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                      <Globe className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{project.url}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                        {project.type === 'android' ? 'Android' : 'Website'}
+                      </Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
