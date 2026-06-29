@@ -5,8 +5,9 @@ generator client {
 // Production: Supabase PostgreSQL
 // To deploy: npm run db:deploy:swap && prisma db push && prisma generate
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
