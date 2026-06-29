@@ -1,22 +1,20 @@
 // Lightweight Firebase ID token verification without firebase-admin
-// Verifies JWTs using Google's public certs directly via jose
+// Verifies JWTs using Google's public JWK set directly via jose
 
-let _jwks: any = null;
-let _jwksExpiry = 0;
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const GOOGLE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/jwk';
+// Correct JWK endpoint for Firebase ID tokens
+const FIREBASE_JWKS_URL = new URL(
+  'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
+);
 
-async function getJwks() {
-  if (_jwks && Date.now() < _jwksExpiry) return _jwks;
+// Cache the remote JWKS fetcher (jose handles caching internally)
+let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
-  const { jose } = await import('jose') as any;
-  const response = await fetch(GOOGLE_CERTS_URL);
-  const data = await response.json();
-
-  // Build JWKS from Google's format
-  const keys = Object.values(data) as any[];
-  _jwks = jose.createLocalJWKSet({ keys });
-  _jwksExpiry = Date.now() + 6 * 60 * 60 * 1000; // cache for 6 hours
+function getJwks() {
+  if (!_jwks) {
+    _jwks = createRemoteJWKSet(FIREBASE_JWKS_URL);
+  }
   return _jwks;
 }
 
@@ -35,21 +33,24 @@ export interface FirebaseToken {
 }
 
 export async function verifyFirebaseToken(idToken: string, projectId?: string): Promise<FirebaseToken> {
-  const { jose } = await import('jose') as any;
-  const jwks = await getJwks();
+  const jwks = getJwks();
   const pid = projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
+  if (!pid) {
+    throw new Error('Firebase project ID not configured. Set NEXT_PUBLIC_FIREBASE_PROJECT_ID.');
+  }
+
   try {
-    const { payload } = await jose.jwtVerify(idToken, jwks, {
+    const { payload } = await jwtVerify(idToken, jwks, {
       issuer: `https://securetoken.google.com/${pid}`,
       audience: pid,
     });
 
     return {
-      uid: payload.sub,
-      email: payload.email || null,
-      name: payload.name || null,
-      picture: payload.picture || null,
+      uid: payload.sub as string,
+      email: (payload.email as string) || null,
+      name: (payload.name as string) || null,
+      picture: (payload.picture as string) || null,
       firebase: payload.firebase ? {
         sign_in_provider: (payload.firebase as any).sign_in_provider,
       } : undefined,

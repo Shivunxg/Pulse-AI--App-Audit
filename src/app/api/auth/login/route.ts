@@ -3,9 +3,18 @@ import { loginUser, verifyFirebaseToken } from '@/lib/auth';
 import { isFirebaseConfigured } from '@/lib/firebase-token-verify';
 
 export async function POST(request: NextRequest) {
-  try {
-    const { email, password, idToken } = await request.json();
+  let body: { email?: string; password?: string; idToken?: string } = {};
 
+  // Safe body parse — malformed JSON returns 400, never crashes
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  const { email, password, idToken } = body;
+
+  try {
     // Firebase Google/Email sign-in: client sends idToken
     if (idToken && isFirebaseConfigured()) {
       try {
@@ -30,7 +39,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 401 });
     }
   } catch (err) {
-    console.error('Login error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[/api/auth/login] Unhandled error:', err);
+    const msg = err instanceof Error ? err.message : 'Internal server error';
+    // Include detail in dev, hide in prod
+    const detail = process.env.NODE_ENV === 'development' ? msg : undefined;
+    return NextResponse.json({ error: 'Internal server error', ...(detail && { detail }) }, { status: 500 });
   }
 }

@@ -35,14 +35,26 @@ export function AuthForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Login failed'); return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) { setError(data.error || `Login failed (${res.status})`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
-      setError(msg.includes('invalid-credential') || msg.includes('INVALID_LOGIN_CREDENTIALS')
-        ? 'Invalid email or password' : msg);
+      if (msg.includes('invalid-credential') || msg.includes('INVALID_LOGIN_CREDENTIALS') || msg.includes('wrong-password')) {
+        setError('Invalid email or password');
+      } else if (msg.includes('user-not-found')) {
+        setError('No account found with this email');
+      } else if (msg.includes('too-many-requests')) {
+        setError('Too many attempts. Please try again later.');
+      } else if (msg.includes('network-request-failed')) {
+        setError('Network error. Check your connection.');
+      } else if (msg.includes('Token verification failed')) {
+        setError('Authentication error. Please try again.');
+      } else {
+        setError(msg);
+      }
     } finally { setLoading(false); }
   };
 
@@ -61,13 +73,24 @@ export function AuthForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Registration failed'); return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) { setError(data.error || `Registration failed (${res.status})`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
-      setError(msg.includes('email-already-in-use') ? 'An account with this email already exists' : msg);
+      if (msg.includes('email-already-in-use')) {
+        setError('An account with this email already exists');
+      } else if (msg.includes('weak-password')) {
+        setError('Password is too weak. Use at least 6 characters.');
+      } else if (msg.includes('network-request-failed')) {
+        setError('Network error. Check your connection.');
+      } else if (msg.includes('Token verification failed')) {
+        setError('Authentication error. Please try again.');
+      } else {
+        setError(msg);
+      }
     } finally { setLoading(false); }
   };
 
@@ -85,14 +108,17 @@ export function AuthForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(`[${res.status}] ${data.error || JSON.stringify(data)}`); return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) { setError(data.error || `Sign-in failed (${res.status})`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google sign-in failed';
       if (msg.includes('popup-closed') || msg.includes('auth/popup-closed')) return;
-      setError(`Network: ${msg}`);
+      if (msg.includes('network-request-failed')) { setError('Network error. Check your connection.'); return; }
+      if (msg.includes('Token verification failed')) { setError('Authentication error. Please try again.'); return; }
+      setError(msg);
     } finally { setLoading(false); }
   };
 
@@ -108,12 +134,15 @@ export function AuthForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Something went wrong'); return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) { setError(data.error || `Something went wrong (${res.status})`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
-    } catch { setError('Network error'); }
-    finally { setLoading(false); }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(msg.includes('JSON') ? 'Server error. Please try again.' : 'Network error');
+    } finally { setLoading(false); }
   };
 
   const handleSubmit = isFirebaseConfigured
