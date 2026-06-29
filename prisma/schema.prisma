@@ -2,10 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Local development with SQLite — swap with schema.prisma for local dev
+// Production: Supabase PostgreSQL
+// To deploy: npm run db:deploy:swap && prisma db push && prisma generate
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

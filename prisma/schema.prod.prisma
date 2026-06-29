@@ -54,6 +54,8 @@ model Audit {
   accessibilityScore Float?
   securityScore    Float?
   uxScore          Float?
+  technologyScore  Float?
+  contentScore     Float?
   findings      String   @default("{}")
   aiSummary     String   @default("{}")
   responseTime  Float?

@@ -261,42 +261,86 @@ async function auditAccessibility(page: Page) {
   const issues: Finding[] = [];
   const passed: Finding[] = [];
 
-  const a11y = await page.evaluate(() => {
-    const imgsNoAlt = document.querySelectorAll('img:not([alt])').length;
-    const inputsNoLabel = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])')).filter(input => {
-      const id = input.getAttribute('id');
-      return !id || !document.querySelector(`label[for="${id}"]`);
-    }).length;
-    const lang = document.documentElement.lang;
-    const hasSkipLink = !!document.querySelector('a[href="#main"], a[href="#content"], [class*="skip"]');
-    const lowContrastCount = 0; // Would need computed styles — approximated
-    const buttons = Array.from(document.querySelectorAll('button')).filter(b => !b.textContent?.trim() && !b.getAttribute('aria-label')).length;
-    const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => !f.getAttribute('title')).length;
-    const tabIndex = document.querySelectorAll('[tabindex]:not([tabindex="-1"])').length;
-    const ariaLandmarks = document.querySelectorAll('main, nav, header, footer, aside, [role="main"], [role="navigation"], [role="banner"]').length;
-    const focusableElements = document.querySelectorAll('a, button, input, select, textarea, [tabindex]').length;
-    return { imgsNoAlt, inputsNoLabel, lang, hasSkipLink, buttons, iframes, tabIndex, ariaLandmarks, focusableElements };
-  });
+  // Priority 1: Run axe-core for real WCAG 2.2 AA compliance
+  try {
+    const { AxeBuilder } = await import('@axe-core/playwright');
+    const axeResults = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+      .analyze();
 
-  if (!a11y.lang) issues.push(finding('accessibility', 'critical', 'Missing Language Attribute', 'Screen readers need the lang attribute to use correct pronunciation.', 'Add lang="en" to the <html> element.'));
-  else passed.push(finding('accessibility', 'passed', 'Language Declared', `lang="${a11y.lang}" set — screen readers will use correct pronunciation.`));
+    // Map axe violations to findings
+    for (const violation of axeResults.violations) {
+      const severity = violation.impact === 'critical' ? 'critical'
+        : violation.impact === 'serious' ? 'critical'
+        : violation.impact === 'moderate' ? 'warning'
+        : 'info';
 
-  if (a11y.imgsNoAlt > 0) issues.push(finding('accessibility', 'critical', `${a11y.imgsNoAlt} Images Missing Alt Text`, 'Images without alt attributes are invisible to screen readers.', 'Add descriptive alt text. Use alt="" for decorative images.'));
-  else passed.push(finding('accessibility', 'passed', 'All Images Have Alt Text', 'Every image has an alt attribute.'));
+      const nodeCount = violation.nodes.length;
+      const nodeDesc = nodeCount === 1 ? '1 element' : `${nodeCount} elements`;
+      const wcagTags = violation.tags.filter(t => t.startsWith('wcag')).slice(0, 2).join(', ');
 
-  if (a11y.inputsNoLabel > 0) issues.push(finding('accessibility', 'critical', `${a11y.inputsNoLabel} Form Inputs Without Labels`, 'Unlabelled inputs cannot be identified by screen readers.', 'Add <label for="inputId"> or aria-label to every form input.'));
-  else passed.push(finding('accessibility', 'passed', 'Form Inputs Labelled', 'All visible form inputs have associated labels.'));
+      issues.push(finding(
+        'accessibility',
+        severity as any,
+        violation.help,
+        `${violation.description} Affects ${nodeDesc}.${wcagTags ? ` [${wcagTags}]` : ''}`,
+        `${violation.helpUrl ? `Details: ${violation.helpUrl}` : violation.help}`
+      ));
+    }
 
-  if (a11y.buttons > 0) issues.push(finding('accessibility', 'warning', `${a11y.buttons} Buttons Without Accessible Names`, 'Icon-only buttons without aria-label are meaningless to assistive tech.', 'Add aria-label="Description" to icon buttons.'));
-  else passed.push(finding('accessibility', 'passed', 'All Buttons Have Names', 'No unlabelled buttons detected.'));
+    // Map incomplete (needs review) as info
+    for (const incomplete of axeResults.incomplete.slice(0, 5)) {
+      issues.push(finding(
+        'accessibility',
+        'info',
+        `Needs Review: ${incomplete.help}`,
+        `${incomplete.description} — manual verification required.`,
+        incomplete.helpUrl || incomplete.help
+      ));
+    }
 
-  if (a11y.iframes > 0) issues.push(finding('accessibility', 'warning', `${a11y.iframes} iFrames Missing Title`, 'Screen readers cannot describe untitled iframes to users.', 'Add a title attribute to all iframes, e.g. title="Payment form".'));
+    // Map passed rules
+    const significantPassed = axeResults.passes.filter(p =>
+      ['image-alt', 'label', 'html-has-lang', 'landmark-one-main', 'bypass',
+       'color-contrast', 'button-name', 'link-name', 'frame-title'].includes(p.id)
+    );
+    for (const pass of significantPassed) {
+      passed.push(finding('accessibility', 'passed', pass.help, pass.description));
+    }
 
-  if (!a11y.hasSkipLink) issues.push(finding('accessibility', 'warning', 'No Skip Navigation Link', 'Keyboard users must tab through all navigation on every page without a skip link.', 'Add <a href="#main" class="sr-only">Skip to main content</a> as first link.'));
-  else passed.push(finding('accessibility', 'passed', 'Skip Navigation Link Present', 'A skip link was found — keyboard users can bypass navigation.'));
+    if (axeResults.violations.length === 0) {
+      passed.push(finding('accessibility', 'passed', 'No WCAG Violations Detected',
+        `axe-core scanned ${axeResults.passes.length} rules — no violations found.`));
+    }
 
-  if (a11y.ariaLandmarks >= 3) passed.push(finding('accessibility', 'passed', 'ARIA Landmarks Present', `${a11y.ariaLandmarks} landmark regions detected (main, nav, header, footer).`));
-  else issues.push(finding('accessibility', 'warning', 'Few ARIA Landmarks', `Only ${a11y.ariaLandmarks} landmark regions found. Screen reader users navigate by landmarks.`, 'Wrap major sections in semantic HTML: <main>, <nav>, <header>, <footer>, <aside>.'));
+  } catch (axeErr) {
+    console.warn('[accessibility] axe-core failed, falling back to manual checks:', axeErr);
+
+    // Fallback: manual DOM checks
+    const a11y = await page.evaluate(() => {
+      const imgsNoAlt = document.querySelectorAll('img:not([alt])').length;
+      const inputsNoLabel = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])')).filter(input => {
+        const id = input.getAttribute('id');
+        return !id || !document.querySelector(`label[for="${id}"]`);
+      }).length;
+      const lang = document.documentElement.lang;
+      const hasSkipLink = !!document.querySelector('a[href="#main"], a[href="#content"], [class*="skip"]');
+      const buttons = Array.from(document.querySelectorAll('button')).filter(b => !b.textContent?.trim() && !b.getAttribute('aria-label')).length;
+      const iframes = Array.from(document.querySelectorAll('iframe')).filter(f => !f.getAttribute('title')).length;
+      const ariaLandmarks = document.querySelectorAll('main, nav, header, footer, aside, [role="main"], [role="navigation"], [role="banner"]').length;
+      return { imgsNoAlt, inputsNoLabel, lang, hasSkipLink, buttons, iframes, ariaLandmarks };
+    });
+
+    if (!a11y.lang) issues.push(finding('accessibility', 'critical', 'Missing Language Attribute', 'Screen readers need the lang attribute.', 'Add lang="en" to the html element.'));
+    else passed.push(finding('accessibility', 'passed', 'Language Declared', `lang="${a11y.lang}" set.`));
+    if (a11y.imgsNoAlt > 0) issues.push(finding('accessibility', 'critical', `${a11y.imgsNoAlt} Images Missing Alt Text`, 'Images without alt are invisible to screen readers.', 'Add descriptive alt text to all images.'));
+    else passed.push(finding('accessibility', 'passed', 'All Images Have Alt Text', 'Every image has an alt attribute.'));
+    if (a11y.inputsNoLabel > 0) issues.push(finding('accessibility', 'critical', `${a11y.inputsNoLabel} Unlabelled Form Inputs`, 'Unlabelled inputs cannot be identified by screen readers.', 'Add label elements or aria-label to every input.'));
+    if (a11y.buttons > 0) issues.push(finding('accessibility', 'warning', `${a11y.buttons} Buttons Without Names`, 'Icon buttons need aria-label.', 'Add aria-label to icon-only buttons.'));
+    if (!a11y.hasSkipLink) issues.push(finding('accessibility', 'warning', 'No Skip Navigation Link', 'Keyboard users must tab through all nav.', 'Add a skip-to-content link.'));
+    if (a11y.ariaLandmarks < 3) issues.push(finding('accessibility', 'warning', 'Few ARIA Landmarks', `Only ${a11y.ariaLandmarks} landmark regions.`, 'Use semantic HTML: main, nav, header, footer.'));
+    else passed.push(finding('accessibility', 'passed', 'ARIA Landmarks Present', `${a11y.ariaLandmarks} landmark regions detected.`));
+  }
 
   const score = scoreFromIssues(issues, passed);
   return { score, issues, passed };

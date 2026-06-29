@@ -1,7 +1,7 @@
 {
   "name": "pulse-playwright-worker",
   "version": "1.0.0",
-  "description": "Pulse AI deep audit worker — Playwright + Chromium on Railway",
+  "description": "Pulse AI deep audit worker — Playwright + Chromium + axe-core on Railway",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -9,6 +9,8 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
+    "@axe-core/playwright": "^4.9.1",
+    "axe-core": "^4.9.1",
     "express": "^4.18.2",
     "playwright": "^1.40.0"
   },

@@ -115,13 +115,15 @@ export async function POST(
         where: { id: audit.id },
         data: {
           status: 'completed',
-          mode, // explicitly re-save mode in case create and update hit different connections
+          mode,
           healthScore: result.healthScore,
           performanceScore: result.performanceScore,
           seoScore: result.seoScore,
           accessibilityScore: result.accessibilityScore,
           securityScore: result.securityScore,
           uxScore: result.uxScore,
+          technologyScore: (result as any).technologyScore ?? null,
+          contentScore: (result as any).contentScore ?? null,
           findings: JSON.stringify(result.findings),
           aiSummary: aiSummaryJson,
           responseTime: result.responseTime,

@@ -26,6 +26,8 @@ interface Audit {
   accessibilityScore: number | null;
   securityScore: number | null;
   uxScore: number | null;
+  technologyScore: number | null;
+  contentScore: number | null;
   responseTime: number | null;
   pageSize: number | null;
   findings: AuditFindings | any;
@@ -47,6 +49,8 @@ const webScoreConfig = [
   { key: 'accessibilityScore' as const, label: 'Accessibility', icon: <Eye className="h-4 w-4" /> },
   { key: 'securityScore' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
   { key: 'uxScore' as const, label: 'UX', icon: <MousePointer className="h-4 w-4" /> },
+  { key: 'technologyScore' as const, label: 'Technology', icon: <Layers className="h-4 w-4" /> },
+  { key: 'contentScore' as const, label: 'Content', icon: <FileText className="h-4 w-4" /> },
 ];
 
 const androidScoreConfig = [

@@ -41,6 +41,8 @@ export async function GET(
           accessibilityScore: a.accessibilityScore,
           securityScore: a.securityScore,
           uxScore: a.uxScore,
+          technologyScore: (a as any).technologyScore ?? null,
+          contentScore: (a as any).contentScore ?? null,
           responseTime: a.responseTime,
           pageSize: a.pageSize,
           findings: a.findings,

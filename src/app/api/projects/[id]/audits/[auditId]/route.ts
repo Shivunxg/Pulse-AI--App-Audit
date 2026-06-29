@@ -38,6 +38,8 @@ export async function GET(
         accessibilityScore: audit.accessibilityScore,
         securityScore: audit.securityScore,
         uxScore: audit.uxScore,
+        technologyScore: (audit as any).technologyScore ?? null,
+        contentScore: (audit as any).contentScore ?? null,
         responseTime: audit.responseTime,
         pageSize: audit.pageSize,
         findings: JSON.parse(audit.findings || '{}'),

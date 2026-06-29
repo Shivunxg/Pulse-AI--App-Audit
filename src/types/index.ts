@@ -4,6 +4,8 @@ export interface AuditFindings {
   accessibility: AccessibilityFindings;
   security: SecurityFindings;
   ux: UxFindings;
+  technology?: TechnologyFindings;
+  content?: ContentFindings;
 }
 
 export interface PerformanceFindings {
@@ -173,6 +175,35 @@ export interface AndroidPerfFindings {
 
 export type ProjectType = 'website' | 'android';
 export type AuditMode = 'simple' | 'deep';
+
+export interface TechnologyFindings {
+  score: number;
+  framework: string | null;
+  cms: string | null;
+  analytics: string[];
+  cdnDetected: boolean;
+  cdnProvider: string | null;
+  jsLibraries: string[];
+  thirdPartyScripts: string[];
+  hasTagManager: boolean;
+  issues: Finding[];
+  passed: Finding[];
+}
+
+export interface ContentFindings {
+  score: number;
+  readabilityScore: number;
+  readabilityGrade: string;
+  wordCount: number;
+  avgSentenceLength: number;
+  ctaCount: number;
+  ctaQuality: 'good' | 'weak' | 'missing';
+  hasPrivacyPolicy: boolean;
+  hasTerms: boolean;
+  duplicateHeadings: number;
+  issues: Finding[];
+  passed: Finding[];
+}
 
 export interface AuditResult {
   healthScore: number;

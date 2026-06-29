@@ -23,6 +23,8 @@ const webScoreConfig = [
   { key: 'accessibility' as const, label: 'Accessibility', icon: <Eye className="h-4 w-4" /> },
   { key: 'security' as const, label: 'Security', icon: <Shield className="h-4 w-4" /> },
   { key: 'ux' as const, label: 'UX', icon: <MousePointer className="h-4 w-4" /> },
+  { key: 'technology' as const, label: 'Technology', icon: <Activity className="h-4 w-4" /> },
+  { key: 'content' as const, label: 'Content', icon: <BarChart3 className="h-4 w-4" /> },
 ];
 
 const androidScoreConfig = [
@@ -546,10 +548,10 @@ export function AuditResultsView() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           {scoreConfig.map(({ key, label }) => (
-            <TabsTrigger key={key} value={key} className="hidden lg:flex items-center gap-1.5">{label}</TabsTrigger>
+            <TabsTrigger key={key} value={key} className="hidden lg:flex items-center gap-1.5 text-xs">{label}</TabsTrigger>
           ))}
         </TabsList>
 
