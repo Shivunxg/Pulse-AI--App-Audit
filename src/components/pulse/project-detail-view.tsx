@@ -63,6 +63,7 @@ export function ProjectDetailView() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [auditMode, setAuditMode] = useState<'simple' | 'deep'>('simple');
+  // v2 — auditModeRef fix + Anthropic AI summary
   const auditModeRef = useRef<'simple' | 'deep'>('simple');
 
   const handleAuditModeChange = (mode: 'simple' | 'deep') => {
