@@ -1,7 +1,7 @@
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { db } from './db';
-import { getAdminAuth, isFirebaseAdminConfigured } from './firebase/admin';
+import { verifyFirebaseToken as verifyToken, isFirebaseConfigured } from './firebase-token-verify';
 
 const scryptAsync = promisify(scrypt);
 
@@ -67,24 +67,18 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
   if (!token) return null;
 
   // Firebase mode: verify ID token
-  const configured = await isFirebaseAdminConfigured();
-  const adminAuth = configured ? await getAdminAuth() : null;
-
-  if (configured && adminAuth) {
+  if (isFirebaseConfigured()) {
     try {
-      const decoded = await adminAuth.verifyIdToken(token);
-      if (decoded) {
-        await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
-        return {
-          id: decoded.uid,
-          email: decoded.email || '',
-          name: decoded.name || null,
-        };
-      }
+      const decoded = await verifyToken(token);
+      await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
+      return {
+        id: decoded.uid,
+        email: decoded.email || '',
+        name: decoded.name || null,
+      };
     } catch (err) {
       return null;
     }
-    return null;
   }
 
   // Fallback: local session token
@@ -98,27 +92,6 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
 // --- Register ---
 
 export async function registerUser(email: string, password: string, name?: string): Promise<{ user: AuthUser; token: string }> {
-  const configured = await isFirebaseAdminConfigured();
-  const adminAuth = configured ? await getAdminAuth() : null;
-
-  if (configured && adminAuth) {
-    try {
-      const userRecord = await adminAuth.createUser({
-        email: email.toLowerCase(),
-        password,
-        displayName: name || email.split('@')[0],
-      });
-      await ensureLocalUser(userRecord.uid, userRecord.email!, name || email.split('@')[0]);
-      return {
-        user: { id: userRecord.uid, email: userRecord.email!, name: name || email.split('@')[0] },
-        token: '__firebase_email_pw__',
-      };
-    } catch (err: any) {
-      if (err?.message?.includes('already exists')) throw new Error('An account with this email already exists');
-      throw new Error(err?.message || 'Registration failed');
-    }
-  }
-
   // Local fallback
   const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) throw new Error('An account with this email already exists');
@@ -134,13 +107,6 @@ export async function registerUser(email: string, password: string, name?: strin
 // --- Login ---
 
 export async function loginUser(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-  const configured = await isFirebaseAdminConfigured();
-
-  if (configured) {
-    throw new Error('__USE_FIREBASE_CLIENT__');
-  }
-
-  // Local fallback
   const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
   if (!user) throw new Error('Invalid email or password');
   const valid = await verifyPassword(password, user.passwordHash);
@@ -152,14 +118,7 @@ export async function loginUser(email: string, password: string): Promise<{ user
 // --- Firebase Google sign-in token exchange ---
 
 export async function verifyFirebaseToken(idToken: string): Promise<{ user: AuthUser; token: string }> {
-  const adminAuth = await getAdminAuth();
-  if (!adminAuth) {
-    throw new Error('Firebase is not configured');
-  }
-
-  const decoded = await adminAuth.verifyIdToken(idToken);
-  if (!decoded) throw new Error('Invalid token');
-
+  const decoded = await verifyToken(idToken);
   await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
 
   return {

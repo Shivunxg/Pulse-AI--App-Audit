@@ -1,27 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getAdminAuth, isFirebaseAdminConfigured, getInitError } from '@/lib/firebase/admin';
+import { verifyFirebaseToken, isFirebaseConfigured } from '@/lib/firebase-token-verify';
 
 export async function GET() {
   try {
-    const configured = await isFirebaseAdminConfigured();
-    const adminAuth = configured ? await getAdminAuth() : null;
-
     return NextResponse.json({
-      firebaseAdminConfigured: configured,
-      adminAuthAvailable: !!adminAuth,
-      hasServiceAccountKey: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
-      serviceAccountKeyLength: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0,
-      serviceAccountKeyStart: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.substring(0, 30) || 'empty',
-      serviceAccountKeyEnd: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.slice(-15) || 'empty',
-      initError: getInitError(),
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'not set',
+      firebaseConfigured: isFirebaseConfigured(),
+      hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'not set',
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'not set',
+      hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      approach: 'jose JWT verification (no firebase-admin)',
     });
   } catch (err: any) {
-    return NextResponse.json({
-      error: true,
-      message: err.message,
-      stack: err.stack?.split('\n').slice(0, 5),
-    }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

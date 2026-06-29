@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerUser, logoutUser } from '@/lib/auth';
-import { isFirebaseAdminConfigured } from '@/lib/firebase/admin';
+import { isFirebaseConfigured } from '@/lib/firebase-token-verify';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,8 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If Firebase is configured, email/password signup is handled client-side
-    const configured = await isFirebaseAdminConfigured();
-    if (configured) {
+    if (isFirebaseConfigured()) {
       return NextResponse.json({ error: '__USE_FIREBASE_CLIENT__' }, { status: 400 });
     }
 
