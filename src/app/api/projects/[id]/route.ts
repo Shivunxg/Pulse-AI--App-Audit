@@ -34,6 +34,7 @@ export async function GET(
         audits: project.audits.map(a => ({
           id: a.id,
           status: a.status,
+          mode: a.mode,
           healthScore: a.healthScore,
           performanceScore: a.performanceScore,
           seoScore: a.seoScore,
