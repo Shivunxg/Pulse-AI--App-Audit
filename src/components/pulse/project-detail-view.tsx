@@ -103,17 +103,20 @@ export function ProjectDetailView() {
   const handleRunAudit = async () => {
     if (!token || !selectedProjectId || running) return;
     setRunning(true);
-    setIsAuditPolling(true);
+    setIsAuditPolling(false);
     try {
-      await fetch(`/api/projects/${selectedProjectId}/audits`, {
+      const res = await fetch(`/api/projects/${selectedProjectId}/audits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mode: auditMode }),
       });
-      setTimeout(() => { loadProject(); setRunning(false); }, 500);
+      // Audit is now synchronous — response means it's done (or failed)
+      loadProject();
     } catch {
+      // network error — still reload to check state
+      loadProject();
+    } finally {
       setRunning(false);
-      setIsAuditPolling(false);
     }
   };
 
