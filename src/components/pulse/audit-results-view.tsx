@@ -165,8 +165,138 @@ export function AuditResultsView() {
   const summary = audit.aiSummary as AiSummary | null;
 
   const handleExportPdf = () => {
-    // Navigate to project detail which has the export button
-    navigate('project-detail', selectedProjectId!);
+    if (!audit || !audit.findings) return;
+
+    const findings = audit.findings;
+    const summary = audit.aiSummary;
+    const isAndroidAudit = findings?.security && findings?.configuration;
+
+    const allIssues = isAndroidAudit
+      ? [...(findings.security?.issues || []), ...(findings.configuration?.issues || []),
+         ...(findings.privacy?.issues || []), ...(findings.codeQuality?.issues || []),
+         ...(findings.performance?.issues || [])]
+      : [...(findings?.performance?.issues || []), ...(findings?.seo?.issues || []),
+         ...(findings?.accessibility?.issues || []), ...(findings?.security?.issues || []),
+         ...(findings?.ux?.issues || [])];
+
+    const allPassed = isAndroidAudit
+      ? [...(findings.security?.passed || []), ...(findings.configuration?.passed || []),
+         ...(findings.privacy?.passed || []), ...(findings.codeQuality?.passed || []),
+         ...(findings.performance?.passed || [])]
+      : [...(findings?.performance?.passed || []), ...(findings?.seo?.passed || []),
+         ...(findings?.accessibility?.passed || []), ...(findings?.security?.passed || []),
+         ...(findings?.ux?.passed || [])];
+
+    const criticals = allIssues.filter((f: any) => f.severity === 'critical');
+    const warnings = allIssues.filter((f: any) => f.severity === 'warning');
+
+    const findingRows = (items: any[]) => items.map(f => `
+      <div class="finding ${f.severity}">
+        <div class="finding-header">
+          <span class="badge badge-${f.severity}">${f.severity.toUpperCase()}</span>
+          <strong>${f.title}</strong>
+        </div>
+        <p>${f.description}</p>
+        ${f.recommendation ? `<p class="recommendation"><strong>Fix:</strong> ${f.recommendation}</p>` : ''}
+      </div>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Pulse AI Report</title>
+<style>
+  @page { margin: 20mm 15mm; size: A4; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; font-size: 13px; line-height: 1.6; background: #fff; }
+  .header { border-bottom: 3px solid #111; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { color: #555; font-size: 12px; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 11px; color: #888; }
+  .scores { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+  .score-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 18px; text-align: center; flex: 1; }
+  .score-value { font-size: 30px; font-weight: 800; }
+  .score-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .section { margin-bottom: 24px; page-break-inside: avoid; }
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e5e5e5; padding-bottom: 6px; margin-bottom: 12px; color: #333; }
+  .summary-box { background: #f8f8f8; border-left: 4px solid #111; padding: 14px 16px; border-radius: 0 6px 6px 0; font-size: 13px; color: #333; }
+  .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+  .stat-row:last-child { border-bottom: none; }
+  .actions-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 12px 14px; }
+  .actions-box ol { padding-left: 16px; } .actions-box li { font-size: 12px; margin-bottom: 3px; }
+  .strengths { list-style: none; } .strengths li { padding: 4px 0 4px 16px; position: relative; font-size: 12px; }
+  .strengths li::before { content: '+'; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
+  .finding { border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid #e5e5e5; page-break-inside: avoid; }
+  .finding.critical { border-color: #fca5a5; background: #fff5f5; }
+  .finding.warning { border-color: #fcd34d; background: #fffdf0; }
+  .finding.passed { border-color: #86efac; background: #f0fdf4; }
+  .finding-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .finding p { font-size: 12px; color: #444; margin-top: 2px; }
+  .recommendation { color: #1d4ed8 !important; font-style: italic; }
+  .badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; }
+  .badge-critical { background: #fecaca; color: #991b1b; }
+  .badge-warning { background: #fef3c7; color: #92400e; }
+  .badge-passed { background: #d1fae5; color: #065f46; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
+  .page-break { page-break-before: always; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none; } }
+</style></head>
+<body>
+  <div class="no-print" style="background:#111;color:#fff;padding:12px 20px;font-size:13px;display:flex;justify-content:space-between;align-items:center;">
+    <span>Pulse AI — PDF Report Preview</span>
+    <button onclick="window.print()" style="background:#fff;color:#111;border:none;padding:8px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">⬇ Save as PDF</button>
+  </div>
+  <div style="padding:32px;max-width:800px;margin:0 auto;">
+    <div class="header">
+      <div>
+        <h1>Pulse AI — Audit Report</h1>
+        <p>${audit.createdAt ? new Date(audit.createdAt).toLocaleString() : ''} · Mode: ${audit.mode === 'deep' ? 'Deep' : 'Simple'}</p>
+        ${audit.responseTime ? `<p>Response time: ${Math.round(audit.responseTime)}ms${audit.pageSize ? ` · Page size: ${(audit.pageSize / 1024).toFixed(0)}KB` : ''}</p>` : ''}
+      </div>
+      <div class="header-right"><div style="font-weight:700;font-size:14px;color:#111">Pulse AI</div><div>pulse-ai-app-audit.vercel.app</div></div>
+    </div>
+
+    <div class="scores">
+      <div class="score-card"><div class="score-value" style="font-size:36px">${Math.round(audit.healthScore || 0)}</div><div class="score-label">Health Score</div></div>
+      ${isAndroidAudit ? `
+        <div class="score-card"><div class="score-value">${Math.round(audit.securityScore || 0)}</div><div class="score-label">Security</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.seoScore || 0)}</div><div class="score-label">Config</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.accessibilityScore || 0)}</div><div class="score-label">Privacy</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.uxScore || 0)}</div><div class="score-label">Code Quality</div></div>
+      ` : `
+        <div class="score-card"><div class="score-value">${Math.round(audit.performanceScore || 0)}</div><div class="score-label">Performance</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.seoScore || 0)}</div><div class="score-label">SEO</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.accessibilityScore || 0)}</div><div class="score-label">Accessibility</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.securityScore || 0)}</div><div class="score-label">Security</div></div>
+        <div class="score-card"><div class="score-value">${Math.round(audit.uxScore || 0)}</div><div class="score-label">UX</div></div>
+      `}
+    </div>
+
+    <div class="two-col" style="margin-bottom:24px;">
+      <div class="section">
+        <div class="section-title">Issue Summary</div>
+        <div class="stat-row"><span>Critical issues</span><strong style="color:#dc2626">${criticals.length}</strong></div>
+        <div class="stat-row"><span>Warnings</span><strong style="color:#d97706">${warnings.length}</strong></div>
+        <div class="stat-row"><span>Passed checks</span><strong style="color:#16a34a">${allPassed.length}</strong></div>
+        <div class="stat-row"><span>Total findings</span><strong>${allIssues.length + allPassed.length}</strong></div>
+      </div>
+      ${summary?.keyStrengths?.length ? `
+      <div class="section">
+        <div class="section-title">Key Strengths</div>
+        <ul class="strengths">${summary.keyStrengths.map((s: string) => `<li>${s}</li>`).join('')}</ul>
+      </div>` : '<div></div>'}
+    </div>
+
+    ${summary?.executiveSummary ? `<div class="section"><div class="section-title">Executive Summary</div><div class="summary-box">${summary.executiveSummary}</div></div>` : ''}
+    ${summary?.priorityActions?.length ? `<div class="section"><div class="section-title">Priority Actions</div><div class="actions-box"><ol>${summary.priorityActions.map((a: string) => `<li>${a}</li>`).join('')}</ol></div></div>` : ''}
+    ${criticals.length > 0 ? `<div class="section page-break"><div class="section-title">Critical Findings (${criticals.length})</div>${findingRows(criticals)}</div>` : ''}
+    ${warnings.length > 0 ? `<div class="section"><div class="section-title">Warnings (${warnings.length})</div>${findingRows(warnings)}</div>` : ''}
+    ${allPassed.length > 0 ? `<div class="section"><div class="section-title">Passed Checks (${allPassed.length})</div>${findingRows(allPassed)}</div>` : ''}
+
+    <div class="footer"><span>Pulse AI — AI-Powered Product Intelligence Platform</span><span>Generated ${new Date().toLocaleString()}</span></div>
+  </div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
   };
 
   return (
