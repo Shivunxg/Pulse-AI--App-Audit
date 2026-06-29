@@ -344,6 +344,7 @@ export function ProjectDetailView() {
   <script>
     // Auto-trigger print dialog after a short delay so styles load
     setTimeout(() => {
+      window.onload = function() { setTimeout(function() { window.print(); }, 800); };
       if (window.location.search.includes('autoprint')) window.print();
     }, 500);
   </script>

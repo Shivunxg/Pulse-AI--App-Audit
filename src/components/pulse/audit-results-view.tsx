@@ -258,8 +258,9 @@ export function AuditResultsView() {
   @page { margin: 18mm 14mm; size: A4; }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;font-size:12.5px;line-height:1.6;background:#fff}
-  .no-print{background:#18181b;color:#fff;padding:12px 20px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
-  .no-print button{background:#fff;color:#111;border:none;padding:8px 20px;border-radius:6px;font-weight:700;cursor:pointer}
+  .no-print{background:#18181b;color:#fff;padding:12px 20px;font-size:13px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+  .no-print button{background:#fff;color:#111;border:none;padding:8px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px}
+  .no-print .hint{font-size:11px;color:#aaa;margin-left:12px}
   .wrap{padding:28px;max-width:800px;margin:0 auto}
   /* Header */
   .report-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:3px solid #111;margin-bottom:20px}
@@ -343,8 +344,11 @@ export function AuditResultsView() {
 </style></head>
 <body>
 <div class="no-print">
-  <span>Pulse AI — ${deep?'Deep':'Simple'} Audit Report Preview</span>
-  <button onclick="window.print()">⬇ Save as PDF</button>
+  <span>Pulse AI — ${deep ? 'Deep' : 'Simple'} Audit Report</span>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="hint">Or press Cmd+P / Ctrl+P</span>
+    <button onclick="window.print()">⬇ Save as PDF</button>
+  </div>
 </div>
 <div class="wrap">
   <div class="report-header">
@@ -404,6 +408,19 @@ export function AuditResultsView() {
     <span>Generated ${new Date().toLocaleString()}</span>
   </div>
 </div>
+<script>
+  // Auto-trigger print dialog after styles and content fully render
+  window.onload = function() {
+    setTimeout(function() { window.print(); }, 800);
+  };
+  // Keyboard shortcut fallback
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+      e.preventDefault();
+      window.print();
+    }
+  });
+</script>
 </body></html>`;
 
     const win = window.open('', '_blank');
