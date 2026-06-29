@@ -63,6 +63,12 @@ export function ProjectDetailView() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [auditMode, setAuditMode] = useState<'simple' | 'deep'>('simple');
+  const auditModeRef = useRef<'simple' | 'deep'>('simple');
+
+  const handleAuditModeChange = (mode: 'simple' | 'deep') => {
+    setAuditMode(mode);
+    auditModeRef.current = mode;
+  };
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,7 +114,7 @@ export function ProjectDetailView() {
       const res = await fetch(`/api/projects/${selectedProjectId}/audits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mode: auditMode }),
+        body: JSON.stringify({ mode: auditModeRef.current }),
       });
       // Audit is now synchronous — response means it's done (or failed)
       loadProject();
@@ -410,7 +416,7 @@ export function ProjectDetailView() {
           <div className="flex items-center gap-2 shrink-0">
             <select
               value={auditMode}
-              onChange={(e) => setAuditMode(e.target.value as 'simple' | 'deep')}
+              onChange={(e) => handleAuditModeChange(e.target.value as 'simple' | 'deep')}
               className="h-9 rounded-md border bg-background px-3 text-sm"
             >
               <option value="simple">Simple Audit</option>
