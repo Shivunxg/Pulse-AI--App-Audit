@@ -1,6 +1,7 @@
 // Firebase Admin — fully lazy to avoid module-level crashes
 let _adminAuth: any = null;
 let _initAttempted = false;
+let _initError: string | null = null;
 
 async function tryInit() {
   if (_initAttempted) return;
@@ -14,8 +15,9 @@ async function tryInit() {
     const app = getApps().length ? getApp() : initializeApp({ credential: cert(credentials) });
     _adminAuth = getAuth(app);
     console.log('Firebase Admin initialized successfully');
-  } catch (err) {
-    console.error('Firebase Admin init error:', err);
+  } catch (err: any) {
+    _initError = err?.message || String(err);
+    console.error('Firebase Admin init error:', _initError);
   }
 }
 
@@ -27,4 +29,8 @@ export async function getAdminAuth() {
 export async function isFirebaseAdminConfigured(): Promise<boolean> {
   if (!_initAttempted) await tryInit();
   return !!_adminAuth;
+}
+
+export function getInitError(): string | null {
+  return _initError;
 }

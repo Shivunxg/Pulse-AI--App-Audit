@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminAuth, isFirebaseAdminConfigured } from '@/lib/firebase/admin';
+import { getAdminAuth, isFirebaseAdminConfigured, getInitError } from '@/lib/firebase/admin';
 
 export async function GET() {
   try {
@@ -11,13 +11,11 @@ export async function GET() {
       adminAuthAvailable: !!adminAuth,
       hasServiceAccountKey: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
       serviceAccountKeyLength: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0,
-      serviceAccountKeyStart: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.substring(0, 20) || 'empty',
-      serviceAccountKeyEnd: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.slice(-10) || 'empty',
-      hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      hasAuthDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      serviceAccountKeyStart: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.substring(0, 30) || 'empty',
+      serviceAccountKeyEnd: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.slice(-15) || 'empty',
+      initError: getInitError(),
       authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'not set',
-      error: adminAuth ? null : configured ? 'init failed' : 'no service account key',
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'not set',
     });
   } catch (err: any) {
     return NextResponse.json({
