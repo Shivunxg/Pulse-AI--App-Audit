@@ -86,7 +86,7 @@ export function AuthForm() {
         body: JSON.stringify({ idToken }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(`${res.status}: ${data.error || 'Google sign-in failed'}`); return; }
+      if (!res.ok) { setError(`[${res.status}] ${data.error || JSON.stringify(data)}`); return; }
       setAuth(data.user, data.token);
       navigate('dashboard');
     } catch (err: unknown) {

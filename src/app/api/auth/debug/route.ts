@@ -1,36 +1,29 @@
 import { NextResponse } from 'next/server';
+import { getAdminAuth, isFirebaseAdminConfigured } from '@/lib/firebase/admin';
 
 export async function GET() {
-  const results: Record<string, string> = {};
-
-  // 1. Check env vars exist
-  results['FIREBASE_SERVICE_ACCOUNT_KEY'] = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-    ? `Set (${process.env.FIREBASE_SERVICE_ACCOUNT_KEY.length} chars)` : 'MISSING';
-
-  results['DATABASE_URL'] = process.env.DATABASE_URL
-    ? `Set (${process.env.DATABASE_URL.substring(0, 30)}...)` : 'MISSING';
-
-  results['NEXT_PUBLIC_FIREBASE_PROJECT_ID'] = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'MISSING';
-
-  // 2. Test Firebase Admin
   try {
-    const { getAdminAuth, isFirebaseAdminConfigured } = await import('@/lib/firebase/admin');
     const configured = await isFirebaseAdminConfigured();
-    results['Firebase Admin'] = configured ? 'Initialized OK' : 'NOT configured (check SERVICE_ACCOUNT_KEY)';
-  } catch (err: any) {
-    results['Firebase Admin'] = `Error: ${err.message}`;
-  }
+    const adminAuth = configured ? await getAdminAuth() : null;
 
-  // 3. Test Database
-  try {
-    const { db } = await import('@/lib/db');
-    await db.$connect();
-    const userCount = await db.user.count();
-    results['Database'] = `Connected OK (${userCount} users)`;
-    await db.$disconnect();
+    return NextResponse.json({
+      firebaseAdminConfigured: configured,
+      adminAuthAvailable: !!adminAuth,
+      hasServiceAccountKey: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+      serviceAccountKeyLength: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0,
+      serviceAccountKeyStart: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.substring(0, 20) || 'empty',
+      serviceAccountKeyEnd: process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.slice(-10) || 'empty',
+      hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      hasAuthDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'not set',
+      error: adminAuth ? null : configured ? 'init failed' : 'no service account key',
+    });
   } catch (err: any) {
-    results['Database'] = `Error: ${err.message?.substring(0, 100)}`;
+    return NextResponse.json({
+      error: true,
+      message: err.message,
+      stack: err.stack?.split('\n').slice(0, 5),
+    }, { status: 500 });
   }
-
-  return NextResponse.json(results);
 }
