@@ -31,6 +31,7 @@ export async function GET(
       audit: {
         id: audit.id,
         status: audit.status,
+        mode: audit.mode,
         healthScore: audit.healthScore,
         performanceScore: audit.performanceScore,
         seoScore: audit.seoScore,
