@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Menu, HeartPulse } from 'lucide-react';
 
 export default function Home() {
-  const { user, currentView, setSidebarOpen, token } = useAppStore();
+  const { user, currentView, setSidebarOpen, token, clearIfExpired } = useAppStore();
 
   // Validate session on mount
   useEffect(() => {
+    // Clear immediately if JWT is expired (avoids stale token hitting API)
+    clearIfExpired();
     if (!token) return;
     fetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
@@ -30,7 +32,7 @@ export default function Home() {
       .catch(() => {
         useAppStore.getState().logout();
       });
-  }, [token]);
+  }, [token, clearIfExpired]);
 
   // Redirect to landing if not authenticated
   if (!user) {

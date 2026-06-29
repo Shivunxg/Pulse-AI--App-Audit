@@ -14,6 +14,7 @@ interface AppState {
   token: string | null;
   setAuth: (user: User, token: string) => void;
   logout: () => void;
+  clearIfExpired: () => void;
 
   // Navigation
   currentView: ViewType;
@@ -32,14 +33,32 @@ interface AppState {
   setIsAuditPolling: (polling: boolean) => void;
 }
 
+// Decode JWT expiry without a library
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (!payload.exp) return false;
+    // Add 30s buffer
+    return Date.now() / 1000 > payload.exp - 30;
+  } catch {
+    return false;
+  }
+}
+
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Auth
       user: null,
       token: null,
       setAuth: (user, token) => set({ user, token }),
       logout: () => set({ user: null, token: null, currentView: 'landing' }),
+      clearIfExpired: () => {
+        const { token } = get();
+        if (token && isJwtExpired(token)) {
+          set({ user: null, token: null, currentView: 'landing' });
+        }
+      },
 
       // Navigation
       currentView: 'landing',
