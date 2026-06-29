@@ -115,6 +115,7 @@ export async function POST(
         where: { id: audit.id },
         data: {
           status: 'completed',
+          mode, // explicitly re-save mode in case create and update hit different connections
           healthScore: result.healthScore,
           performanceScore: result.performanceScore,
           seoScore: result.seoScore,
