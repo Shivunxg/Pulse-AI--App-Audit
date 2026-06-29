@@ -235,17 +235,17 @@ function analyzeAccessibility(html: string) {
   const hasMain = /<main/i.test(html);
   if (hasMain) {
     passed.push(createFinding('accessibility', 'passed', 'Semantic <main> Element',
-      'A <main> landmark element was found, aiding screen reader navigation.'));
+      'A `main` landmark element found — screen readers can navigate by landmark.'));
   } else {
     issues.push(createFinding('accessibility', 'warning', 'Missing <main> Element',
-      'No <main> landmark element found. Screen reader users rely on landmarks for navigation.',
+      'No `main` landmark element found. Screen readers rely on landmarks for navigation.',
       'Wrap the primary content in a <main> element.'));
   }
 
   const hasNav = /<nav/i.test(html);
   if (hasNav) {
     passed.push(createFinding('accessibility', 'passed', 'Semantic <nav> Element',
-      'A <nav> landmark element was found.'));
+      'A `nav` landmark element found.'));
   } else {
     issues.push(createFinding('accessibility', 'info', 'Missing <nav> Element',
       'No <nav> element found. Consider adding one for navigation landmarks.'));
@@ -376,7 +376,7 @@ function analyzeUx(html: string, url: string) {
   const hasHeader = /<header/i.test(html);
   if (hasHeader && hasFooter) {
     passed.push(createFinding('ux', 'passed', 'Page Structure',
-      'Both <header> and <footer> elements found, indicating good page structure.'));
+      'Both header and footer elements found, indicating good page structure.'));
   } else {
     if (!hasHeader) issues.push(createFinding('ux', 'info', 'Missing <header>', 'No <header> element found.', 'Add a <header> for consistent branding and navigation.'));
     if (!hasFooter) issues.push(createFinding('ux', 'info', 'Missing <footer>', 'No <footer> element found.', 'Add a <footer> for secondary links and legal info.'));
