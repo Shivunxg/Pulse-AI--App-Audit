@@ -76,6 +76,7 @@ export async function POST(
 
     const body = await request.json().catch(() => ({}));
     const mode = body.mode === 'deep' ? 'deep' : 'simple';
+    console.log(`[audit] mode=${mode} workerUrl=${process.env.PLAYWRIGHT_WORKER_URL ? 'SET' : 'NOT SET'} body=`, JSON.stringify(body));
 
     const audit = await db.audit.create({
       data: { projectId: id, status: 'running', mode },
