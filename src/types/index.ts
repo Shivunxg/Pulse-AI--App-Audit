@@ -282,4 +282,4 @@ export interface AuditWithProject {
   };
 }
 
-export type ViewType = 'landing' | 'dashboard' | 'projects' | 'project-detail' | 'audit-results' | 'pricing' | 'settings' | 'trends';
+export type ViewType = 'landing' | 'auth' | 'blog' | 'privacy' | 'terms' | 'dashboard' | 'projects' | 'project-detail' | 'audit-results' | 'pricing' | 'settings' | 'trends';
