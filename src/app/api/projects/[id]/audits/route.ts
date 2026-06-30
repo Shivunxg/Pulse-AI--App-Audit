@@ -91,12 +91,14 @@ export async function POST(
         if (process.env.PLAYWRIGHT_WORKER_URL) {
           try {
             result = await callDeepWorker(project.url);
+            console.log(`[audit] Railway worker succeeded — pageSize=${result.pageSize} responseTime=${result.responseTime}`);
           } catch (workerErr) {
-            console.warn('[audit] Worker failed, falling back to enhanced HTTP:', workerErr);
+            const errMsg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+            console.error(`[audit] RAILWAY WORKER FAILED: ${errMsg} — falling back to enhanced HTTP`);
             result = await runDeepHttpAudit(project.url);
           }
         } else {
-          // Worker not deployed yet — use enhanced HTTP
+          console.warn('[audit] PLAYWRIGHT_WORKER_URL not set — using enhanced HTTP fallback');
           result = await runDeepHttpAudit(project.url);
         }
       } else {

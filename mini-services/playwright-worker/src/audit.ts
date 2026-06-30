@@ -21,6 +21,8 @@ interface DeepAuditResult {
   accessibilityScore: number;
   securityScore: number;
   uxScore: number;
+  technologyScore: number;
+  contentScore: number;
   responseTime: number;
   pageSize: number;
   findings: {
@@ -46,6 +48,27 @@ interface DeepAuditResult {
     ux: CategoryResult & {
       mobileScore?: number;
       hasScrollIssues?: boolean;
+    };
+    technology: CategoryResult & {
+      framework?: string | null;
+      cms?: string | null;
+      analytics?: string[];
+      cdnDetected?: boolean;
+      cdnProvider?: string | null;
+      jsLibraries?: string[];
+      thirdPartyScripts?: string[];
+      hasTagManager?: boolean;
+    };
+    content: CategoryResult & {
+      readabilityScore?: number;
+      readabilityGrade?: string;
+      wordCount?: number;
+      avgSentenceLength?: number;
+      ctaCount?: number;
+      ctaQuality?: string;
+      hasPrivacyPolicy?: boolean;
+      hasTerms?: boolean;
+      duplicateHeadings?: number;
     };
   };
   screenshot?: string; // base64
@@ -458,6 +481,150 @@ async function auditUX(page: Page, html: string) {
   return { score, issues, passed, mobileScore: mobileHasHorizontalScroll ? 60 : 100 };
 }
 
+async function auditTechnology(page: Page, html: string, responseHeaders: Record<string, string>) {
+  const issues: Finding[] = [];
+  const passed: Finding[] = [];
+
+  let framework: string | null = null;
+  if (html.includes('__NEXT_DATA__') || html.includes('/_next/')) framework = 'Next.js';
+  else if (html.includes('ng-version')) framework = 'Angular';
+  else if (html.includes('data-reactroot') || html.includes('"react"')) framework = 'React';
+  else if (html.includes('__vue') || html.includes('data-v-')) framework = 'Vue.js';
+  else if (html.includes('wp-content')) framework = 'WordPress';
+  else if (html.includes('cdn.shopify')) framework = 'Shopify';
+  else if (html.includes('wix.com')) framework = 'Wix';
+  else if (html.includes('squarespace')) framework = 'Squarespace';
+  else if (html.includes('webflow')) framework = 'Webflow';
+
+  let cms: string | null = null;
+  if (html.includes('wp-content')) cms = 'WordPress';
+  else if (html.includes('Drupal')) cms = 'Drupal';
+  else if (html.includes('Joomla')) cms = 'Joomla';
+
+  const analytics: string[] = [];
+  if (html.includes('google-analytics.com') || html.includes('gtag(')) analytics.push('Google Analytics');
+  if (html.includes('mixpanel')) analytics.push('Mixpanel');
+  if (html.includes('segment.com')) analytics.push('Segment');
+  if (html.includes('hotjar')) analytics.push('Hotjar');
+  if (html.includes('clarity.ms')) analytics.push('Microsoft Clarity');
+  if (html.includes('heap.io') || html.includes('heapanalytics')) analytics.push('Heap');
+  if (html.includes('posthog')) analytics.push('PostHog');
+  if (html.includes('plausible.io')) analytics.push('Plausible');
+
+  const hasTagManager = html.includes('googletagmanager.com') || html.includes('GTM-');
+
+  let cdnProvider: string | null = null;
+  const serverHeader = responseHeaders['server'] || '';
+  if (responseHeaders['cf-ray']) cdnProvider = 'Cloudflare';
+  else if (responseHeaders['x-amz-cf-id']) cdnProvider = 'AWS CloudFront';
+  else if (responseHeaders['x-vercel-id'] || responseHeaders['x-vercel-cache']) cdnProvider = 'Vercel Edge';
+  else if (serverHeader.includes('Fastly')) cdnProvider = 'Fastly';
+  else if (responseHeaders['x-akamai-transformed']) cdnProvider = 'Akamai';
+  const cdnDetected = !!cdnProvider;
+
+  const jsLibraries: string[] = [];
+  if (html.includes('jquery')) jsLibraries.push('jQuery');
+  if (html.includes('bootstrap')) jsLibraries.push('Bootstrap');
+  if (html.includes('tailwind')) jsLibraries.push('Tailwind CSS');
+
+  const scriptMatches = html.match(/<script[^>]+src=["'][^"']+["']/gi) || [];
+  const thirdPartyScripts = scriptMatches
+    .map(s => { const m = s.match(/src=["']([^"']+)/); return m ? m[1] : ''; })
+    .filter(s => s && !s.startsWith('/') && !s.startsWith('.'));
+
+  if (!analytics.length) {
+    issues.push(finding('technology', 'warning', 'No Analytics Detected', 'No analytics platform detected — you cannot measure user behaviour without tracking.', 'Add Google Analytics 4, Plausible, or PostHog.'));
+  } else {
+    passed.push(finding('technology', 'passed', 'Analytics Configured', `Detected: ${analytics.join(', ')}.`));
+  }
+
+  if (!cdnDetected) {
+    issues.push(finding('technology', 'info', 'No CDN Detected', 'No CDN detected — a CDN improves load times for global users.', 'Use Cloudflare (free), AWS CloudFront, or Vercel Edge.'));
+  } else {
+    passed.push(finding('technology', 'passed', `CDN Active: ${cdnProvider}`, `Content served via ${cdnProvider}.`));
+  }
+
+  if (hasTagManager) passed.push(finding('technology', 'passed', 'Tag Manager Detected', 'A tag manager is present for flexible tracking deployment.'));
+
+  if (thirdPartyScripts.length > 10) {
+    issues.push(finding('technology', 'warning', `${thirdPartyScripts.length} Third-Party Scripts`, 'Each external script adds network round-trips and can block rendering.', 'Audit and remove unused scripts; lazy-load non-critical ones.'));
+  } else if (thirdPartyScripts.length > 0) {
+    passed.push(finding('technology', 'passed', 'Reasonable Third-Party Script Count', `${thirdPartyScripts.length} external scripts — acceptable range.`));
+  }
+
+  if (framework) passed.push(finding('technology', 'passed', `Framework: ${framework}`, `Built with ${framework}${cms ? ` / ${cms}` : ''}.`));
+
+  const score = Math.max(0, Math.min(100, 100 - (analytics.length === 0 ? 15 : 0) - (!cdnDetected ? 10 : 0) - (thirdPartyScripts.length > 10 ? 10 : 0)));
+  return { score, framework, cms, analytics, cdnDetected, cdnProvider, jsLibraries, thirdPartyScripts, hasTagManager, issues, passed };
+}
+
+async function auditContent(html: string) {
+  const issues: Finding[] = [];
+  const passed: Finding[] = [];
+
+  const text = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = text.split(/\s+/).filter(w => w.length > 1);
+  const wordCount = words.length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const avgSentenceLength = sentences.length > 0 ? Math.round(wordCount / sentences.length) : 0;
+
+  const syllables = words.reduce((acc, word) => {
+    const s = word.toLowerCase().replace(/[^a-z]/g, '');
+    const count = s.replace(/[^aeiou]/g, '').length || 1;
+    return acc + count;
+  }, 0);
+  const fkScore = sentences.length > 0 ? Math.round(206.835 - 1.015 * (wordCount / sentences.length) - 84.6 * (syllables / wordCount)) : 50;
+  const readabilityScore = Math.max(0, Math.min(100, fkScore));
+
+  let readabilityGrade = 'Very difficult';
+  if (readabilityScore >= 90) readabilityGrade = 'Very easy (5th grade)';
+  else if (readabilityScore >= 80) readabilityGrade = 'Easy (6th grade)';
+  else if (readabilityScore >= 70) readabilityGrade = 'Fairly easy (7th grade)';
+  else if (readabilityScore >= 60) readabilityGrade = 'Standard (8-9th grade)';
+  else if (readabilityScore >= 50) readabilityGrade = 'Fairly difficult (10-12th grade)';
+  else if (readabilityScore >= 30) readabilityGrade = 'Difficult (college)';
+
+  const ctaKeywords = /\b(get started|sign up|buy now|start free|try free|book a demo|contact us|learn more|download|subscribe|join|shop now|order now|request a demo|get a quote|start today)\b/gi;
+  const ctaMatches = text.match(ctaKeywords) || [];
+  const ctaCount = ctaMatches.length;
+  const ctaQuality: 'good' | 'weak' | 'missing' = ctaCount >= 2 ? 'good' : ctaCount === 1 ? 'weak' : 'missing';
+
+  const hasPrivacyPolicy = /privacy\s*policy|privacy\s*notice/i.test(html);
+  const hasTerms = /terms\s*(of\s*)?(service|use)|terms\s*&\s*conditions/i.test(html);
+
+  const headingTexts = (html.match(/<h[1-6][^>]*>([^<]+)<\/h[1-6]>/gi) || []).map(h => h.replace(/<[^>]+>/g, '').trim().toLowerCase());
+  const uniqueHeadings = new Set(headingTexts);
+  const duplicateHeadings = headingTexts.length - uniqueHeadings.size;
+
+  if (readabilityScore < 50) issues.push(finding('content', 'warning', 'Content Is Hard to Read', `Flesch score is ${readabilityScore} (${readabilityGrade}). Most web content should score 60+.`, 'Use shorter sentences and simpler words. Aim for 60+.'));
+  else passed.push(finding('content', 'passed', 'Good Readability', `Flesch score is ${readabilityScore} (${readabilityGrade}).`));
+
+  if (avgSentenceLength > 25) issues.push(finding('content', 'warning', 'Sentences Are Too Long', `Average sentence length is ${avgSentenceLength} words.`, 'Keep sentences under 20 words.'));
+  else if (avgSentenceLength > 0) passed.push(finding('content', 'passed', 'Good Sentence Length', `Average sentence length is ${avgSentenceLength} words.`));
+
+  if (ctaQuality === 'missing') issues.push(finding('content', 'critical', 'No Clear Call-to-Action', 'No primary CTA found. Visitors have no obvious next step.', 'Add a prominent CTA above the fold using action verbs.'));
+  else if (ctaQuality === 'weak') issues.push(finding('content', 'warning', 'Only One CTA Detected', 'Multiple CTAs at key journey moments improve conversion.', 'Add CTAs after hero, features, testimonials, and footer.'));
+  else passed.push(finding('content', 'passed', 'Strong CTA Presence', `${ctaCount} CTAs detected: ${[...new Set(ctaMatches)].slice(0, 3).join(', ')}.`));
+
+  if (!hasPrivacyPolicy) issues.push(finding('content', 'critical', 'No Privacy Policy Link', 'May violate GDPR/DPDP Act requirements.', 'Add a privacy policy page and link it in your footer.'));
+  else passed.push(finding('content', 'passed', 'Privacy Policy Present', 'A privacy policy link was detected.'));
+
+  if (!hasTerms) issues.push(finding('content', 'warning', 'No Terms of Service', 'No Terms of Service detected.', 'Add a Terms of Service page.'));
+  else passed.push(finding('content', 'passed', 'Terms of Service Present', 'Terms of Service link detected.'));
+
+  if (wordCount < 200) issues.push(finding('content', 'warning', 'Very Little Content', `Only ${wordCount} words. Thin content signals low value to search engines.`, 'Add more substantive content: features, benefits, FAQs.'));
+  else passed.push(finding('content', 'passed', 'Sufficient Content Volume', `${wordCount.toLocaleString()} words detected.`));
+
+  if (duplicateHeadings > 0) issues.push(finding('content', 'info', `${duplicateHeadings} Duplicate Heading${duplicateHeadings > 1 ? 's' : ''}`, 'Duplicate headings confuse screen readers and dilute SEO.', 'Make each heading unique.'));
+
+  const score = Math.max(0, Math.min(100,
+    100 - (readabilityScore < 50 ? 15 : 0) - (ctaQuality === 'missing' ? 25 : ctaQuality === 'weak' ? 10 : 0)
+    - (!hasPrivacyPolicy ? 20 : 0) - (!hasTerms ? 10 : 0) - (wordCount < 200 ? 10 : 0) - (duplicateHeadings * 5)
+  ));
+
+  return { score, readabilityScore, readabilityGrade, wordCount, avgSentenceLength, ctaCount, ctaQuality, hasPrivacyPolicy, hasTerms, duplicateHeadings, issues, passed };
+}
+
 export async function runDeepAudit(url: string): Promise<DeepAuditResult> {
   const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
   let browser: Browser | null = null;
@@ -529,21 +696,25 @@ export async function runDeepAudit(url: string): Promise<DeepAuditResult> {
     const screenshotBase64 = screenshot.toString('base64');
 
     // Run all audits in parallel
-    const [performance, seo, accessibility, security, ux] = await Promise.all([
+    const [performance, seo, accessibility, security, ux, technology, content] = await Promise.all([
       auditPerformance(page, responseTime, pageSize, html),
       auditSEO(page, html, normalizedUrl),
       auditAccessibility(page),
       auditSecurity(page, responseHeaders),
       auditUX(page, html),
+      auditTechnology(page, html, responseHeaders),
+      auditContent(html),
     ]);
 
-    // Health score — weighted average
+    // Health score — weighted average across 7 categories
     const healthScore = Math.round(
-      performance.score * 0.25 +
-      seo.score * 0.25 +
-      accessibility.score * 0.20 +
-      security.score * 0.20 +
-      ux.score * 0.10
+      performance.score * 0.20 +
+      seo.score * 0.20 +
+      accessibility.score * 0.15 +
+      security.score * 0.15 +
+      ux.score * 0.10 +
+      content.score * 0.15 +
+      technology.score * 0.05
     );
 
     return {
@@ -553,6 +724,8 @@ export async function runDeepAudit(url: string): Promise<DeepAuditResult> {
       accessibilityScore: Math.round(accessibility.score),
       securityScore: Math.round(security.score),
       uxScore: Math.round(ux.score),
+      technologyScore: Math.round(technology.score),
+      contentScore: Math.round(content.score),
       responseTime,
       pageSize,
       findings: {
@@ -580,6 +753,21 @@ export async function runDeepAudit(url: string): Promise<DeepAuditResult> {
         accessibility: { score: accessibility.score, issues: accessibility.issues, passed: accessibility.passed },
         security: { score: security.score, issues: security.issues, passed: security.passed, headers: security.headers },
         ux: { score: ux.score, issues: ux.issues, passed: ux.passed, mobileScore: ux.mobileScore },
+        technology: {
+          score: technology.score, issues: technology.issues, passed: technology.passed,
+          framework: technology.framework, cms: technology.cms, analytics: technology.analytics,
+          cdnDetected: technology.cdnDetected, cdnProvider: technology.cdnProvider,
+          jsLibraries: technology.jsLibraries, thirdPartyScripts: technology.thirdPartyScripts,
+          hasTagManager: technology.hasTagManager,
+        },
+        content: {
+          score: content.score, issues: content.issues, passed: content.passed,
+          readabilityScore: content.readabilityScore, readabilityGrade: content.readabilityGrade,
+          wordCount: content.wordCount, avgSentenceLength: content.avgSentenceLength,
+          ctaCount: content.ctaCount, ctaQuality: content.ctaQuality,
+          hasPrivacyPolicy: content.hasPrivacyPolicy, hasTerms: content.hasTerms,
+          duplicateHeadings: content.duplicateHeadings,
+        },
       },
       screenshot: screenshotBase64,
     };
