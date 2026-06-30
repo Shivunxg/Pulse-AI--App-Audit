@@ -2,7 +2,10 @@ import type { AuditFindings, AiSummary, AndroidFindings } from '@/types';
 
 async function callClaude(systemPrompt: string, userPrompt: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  if (!apiKey) {
+    console.error('[ai-summary] ANTHROPIC_API_KEY is not set in environment');
+    throw new Error('ANTHROPIC_API_KEY not set');
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -20,7 +23,11 @@ async function callClaude(systemPrompt: string, userPrompt: string): Promise<str
     signal: AbortSignal.timeout(30000),
   });
 
-  if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`);
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error(`[ai-summary] Anthropic API error: ${res.status} — ${errBody}`);
+    throw new Error(`Anthropic API error: ${res.status} — ${errBody}`);
+  }
   const data = await res.json();
   return data?.content?.[0]?.text || '';
 }

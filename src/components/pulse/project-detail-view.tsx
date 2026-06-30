@@ -181,6 +181,8 @@ export function ProjectDetailView() {
       <div class="score-card"><div class="score-value">${Math.round(audit.accessibilityScore || 0)}</div><div class="score-label">Accessibility</div></div>
       <div class="score-card"><div class="score-value">${Math.round(audit.securityScore || 0)}</div><div class="score-label">Security</div></div>
       <div class="score-card"><div class="score-value">${Math.round(audit.uxScore || 0)}</div><div class="score-label">UX</div></div>
+      ${audit.technologyScore != null ? `<div class="score-card"><div class="score-value">${Math.round(audit.technologyScore)}</div><div class="score-label">Technology</div></div>` : ''}
+      ${audit.contentScore != null ? `<div class="score-card"><div class="score-value">${Math.round(audit.contentScore)}</div><div class="score-label">Content</div></div>` : ''}
     `;
 
     const allIssues = isAndroidAudit

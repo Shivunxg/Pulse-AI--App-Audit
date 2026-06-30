@@ -371,6 +371,8 @@ export function AuditResultsView() {
     <div class="score-card"><div class="score-val">${Math.round(audit.accessibilityScore||0)}</div><div class="score-lbl">Accessibility</div></div>
     <div class="score-card"><div class="score-val">${Math.round(audit.securityScore||0)}</div><div class="score-lbl">Security</div></div>
     <div class="score-card"><div class="score-val">${Math.round(audit.uxScore||0)}</div><div class="score-lbl">UX</div></div>
+    ${audit.technologyScore!=null?`<div class="score-card"><div class="score-val">${Math.round(audit.technologyScore)}</div><div class="score-lbl">Technology</div></div>`:''}
+    ${audit.contentScore!=null?`<div class="score-card"><div class="score-val">${Math.round(audit.contentScore)}</div><div class="score-lbl">Content</div></div>`:''}
   </div>
 
   <div class="two-col">
