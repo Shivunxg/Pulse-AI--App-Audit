@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, FolderKanban, LayoutDashboard, LogOut, Plus, HeartPulse, Sparkles } from 'lucide-react';
+import { Activity, BarChart3, FolderKanban, LayoutDashboard, LogOut, Plus, HeartPulse, Sparkles, TrendingUp, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/use-app-store';
@@ -10,13 +10,14 @@ import { useRouter, usePathname } from 'next/navigation';
 const navItems = [
   { view: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
   { view: 'projects' as const, label: 'Projects', icon: FolderKanban },
+  { view: 'trends' as const, label: 'Trends', icon: TrendingUp },
   { view: 'pricing' as const, label: 'Pricing', icon: Sparkles },
 ];
 
 export function AppSidebar() {
   const { currentView, navigate, sidebarOpen, setSidebarOpen, logout, user } = useAppStore();
 
-  const handleNav = (view: 'dashboard' | 'projects' | 'pricing') => {
+  const handleNav = (view: 'dashboard' | 'projects' | 'pricing' | 'trends' | 'settings') => {
     navigate(view);
     setSidebarOpen(false);
   };
@@ -68,6 +69,14 @@ export function AppSidebar() {
           <div className="px-3 py-2 text-sm text-muted-foreground truncate">
             {user?.email}
           </div>
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 text-muted-foreground"
+            onClick={() => handleNav('settings')}
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </Button>
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 text-muted-foreground"
