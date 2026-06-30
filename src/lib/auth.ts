@@ -58,6 +58,14 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 export function getTokenFromHeader(request: Request): string | null {
+  // Prefer httpOnly cookie (secure — not readable by JS, immune to XSS token theft)
+  const cookieHeader = request.headers.get('cookie');
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)pulse_session=([^;]+)/);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  // Fall back to Bearer header — supports existing frontend during migration
+  // and any future API/CLI clients that can't use cookies.
   const auth = request.headers.get('authorization');
   if (auth?.startsWith('Bearer ')) return auth.slice(7);
   return null;

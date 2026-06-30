@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, logoutUser } from '@/lib/auth';
+import { getUserFromRequest, logoutUser, getTokenFromHeader } from '@/lib/auth';
+import { buildClearSessionCookie } from '@/lib/session-cookie';
 
 export async function GET(request: NextRequest) {
   try {
+    const token = getTokenFromHeader(request);
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-    return NextResponse.json({ user });
+    // Echo the token back so the client can populate its in-memory store
+    // (token is sourced from the httpOnly cookie when present — the client
+    // never has to read the cookie itself, just receives this response).
+    return NextResponse.json({ user, token });
   } catch (err) {
     console.error('Auth check error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -16,10 +21,11 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const token = getTokenFromHeader(request);
     if (token) await logoutUser(token);
-    return NextResponse.json({ success: true });
+    const res = NextResponse.json({ success: true });
+    res.headers.set('Set-Cookie', buildClearSessionCookie());
+    return res;
   } catch (err) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

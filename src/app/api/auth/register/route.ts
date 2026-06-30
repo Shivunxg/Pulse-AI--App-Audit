@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerUser, logoutUser } from '@/lib/auth';
 import { isFirebaseConfigured } from '@/lib/firebase-token-verify';
+import { buildSessionCookie } from '@/lib/session-cookie';
+import { buildClearSessionCookie } from '@/lib/session-cookie';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +22,9 @@ export async function POST(request: NextRequest) {
 
     try {
       const { user, token } = await registerUser(email, name, password);
-      return NextResponse.json({ user, token });
+      const res = NextResponse.json({ user, token });
+      res.headers.set('Set-Cookie', buildSessionCookie(token));
+      return res;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
       const status = msg.includes('already exists') ? 409 : 400;
@@ -37,7 +41,9 @@ export async function DELETE(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (token) await logoutUser(token);
-    return NextResponse.json({ success: true });
+    const res = NextResponse.json({ success: true });
+    res.headers.set('Set-Cookie', buildClearSessionCookie());
+    return res;
   } catch (err) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

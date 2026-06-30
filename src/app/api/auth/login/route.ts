@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loginUser, verifyFirebaseToken } from '@/lib/auth';
 import { isFirebaseConfigured } from '@/lib/firebase-token-verify';
+import { buildSessionCookie } from '@/lib/session-cookie';
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; password?: string; idToken?: string } = {};
@@ -19,7 +20,9 @@ export async function POST(request: NextRequest) {
     if (idToken && isFirebaseConfigured()) {
       try {
         const { user, token } = await verifyFirebaseToken(idToken);
-        return NextResponse.json({ user, token });
+        const res = NextResponse.json({ user, token });
+        res.headers.set('Set-Cookie', buildSessionCookie(token));
+        return res;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Firebase auth failed';
         return NextResponse.json({ error: msg }, { status: 401 });
@@ -33,7 +36,9 @@ export async function POST(request: NextRequest) {
 
     try {
       const { user, token } = await loginUser(email, password);
-      return NextResponse.json({ user, token });
+      const res = NextResponse.json({ user, token });
+      res.headers.set('Set-Cookie', buildSessionCookie(token));
+      return res;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       return NextResponse.json({ error: msg }, { status: 401 });

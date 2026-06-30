@@ -83,7 +83,13 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'pulse-auth',
-      partialize: (state) => ({ user: state.user, token: state.token }),
+      // SECURITY: token is intentionally NOT persisted to localStorage.
+      // It's now carried via an httpOnly cookie (set by the login/register API
+      // routes) which JavaScript cannot read — this closes the XSS token-theft
+      // vector that plain localStorage persistence had. `token` still lives in
+      // memory for this tab's session (so existing Bearer-header API calls keep
+      // working during the migration), it's just not written to disk.
+      partialize: (state) => ({ user: state.user }),
     }
   )
 );

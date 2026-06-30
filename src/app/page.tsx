@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/use-app-store';
 import { AppSidebar } from '@/components/pulse/app-sidebar';
 import { AuthForm } from '@/components/pulse/auth-form';
@@ -15,27 +15,39 @@ import { Button } from '@/components/ui/button';
 import { Menu, HeartPulse } from 'lucide-react';
 
 export default function Home() {
-  const { user, currentView, setSidebarOpen, token, clearIfExpired } = useAppStore();
+  const { user, currentView, setSidebarOpen, token, clearIfExpired, setAuth, logout } = useAppStore();
+  const [restoring, setRestoring] = useState(true);
 
-  // Validate session on mount
+  // Restore / validate session on mount.
+  // The httpOnly cookie (set at login) authenticates this request automatically
+  // via `credentials: 'include'` — we don't need the in-memory token to make
+  // this specific call. The response then repopulates the in-memory token for
+  // existing Bearer-header call sites elsewhere in the app.
   useEffect(() => {
-    // Clear immediately if JWT is expired (avoids stale token hitting API)
     clearIfExpired();
-    if (!token) return;
-    fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch('/api/auth/me', { credentials: 'include' })
       .then((r) => {
         if (r.ok) return r.json();
         throw new Error('Invalid session');
       })
       .then((data) => {
         if (!data.user) throw new Error('No user');
+        setAuth(data.user, data.token || token || '');
       })
       .catch(() => {
-        useAppStore.getState().logout();
-      });
-  }, [token, clearIfExpired]);
+        logout();
+      })
+      .finally(() => setRestoring(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (restoring && !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <HeartPulse className="h-8 w-8 text-primary animate-pulse" />
+      </div>
+    );
+  }
 
   // Redirect to landing if not authenticated
   if (!user) {
