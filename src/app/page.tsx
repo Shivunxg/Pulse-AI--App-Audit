@@ -11,6 +11,10 @@ import { AuditResultsView } from '@/components/pulse/audit-results-view';
 import { PricingView } from '@/components/pulse/pricing-view';
 import { SettingsView } from '@/components/pulse/settings-view';
 import { TrendsView } from '@/components/pulse/trends-view';
+import { LandingPage } from '@/components/pulse/landing-page';
+import { BlogPostView } from '@/components/pulse/blog-post-view';
+import { PrivacyPolicyView } from '@/components/pulse/privacy-policy-view';
+import { TermsView } from '@/components/pulse/terms-view';
 import { Button } from '@/components/ui/button';
 import { Menu, HeartPulse } from 'lucide-react';
 
@@ -51,7 +55,11 @@ export default function Home() {
 
   // Redirect to landing if not authenticated
   if (!user) {
-    return <AuthForm />;
+    if (currentView === 'auth') return <AuthForm />;
+    if (currentView === 'blog') return <BlogPostView />;
+    if (currentView === 'privacy') return <PrivacyPolicyView />;
+    if (currentView === 'terms') return <TermsView />;
+    return <LandingPage />;
   }
 
   const renderView = () => {

@@ -150,19 +150,22 @@ export function AuthForm() {
     : handleLocalAuth;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4 relative">
+      <button onClick={() => navigate('landing')} className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors z-10">
+        <ArrowLeft className="h-4 w-4" />
+        Back to website
+      </button>
+
       <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center gap-3 text-center">
+        <button onClick={() => navigate('landing')} className="flex flex-col items-center gap-3 text-center mx-auto">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg">
             <HeartPulse className="h-7 w-7 text-primary-foreground" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Pulse AI</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              AI-Powered Product Intelligence Platform
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">AI-Powered Product Intelligence Platform</p>
           </div>
-        </div>
+        </button>
 
         <Card className="shadow-xl border-0 shadow-black/5">
           <CardHeader className="text-center pb-2">
