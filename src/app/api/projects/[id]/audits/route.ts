@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { runAudit } from '@/lib/audit-engine';
 import { generateAiSummary } from '@/lib/ai-summary';
 import { checkAuditAllowed, checkAiSummaryAllowed, filterFindingsByTier } from '@/lib/tiers';
+import { auditPlayStoreListing } from '@/lib/play-store-audit';
 
 export const maxDuration = 60;
 
@@ -73,7 +74,10 @@ export async function POST(
     const { id } = await params;
     const project = await db.project.findFirst({ where: { id, userId: user.id } });
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (project.type !== 'website') return NextResponse.json({ error: 'Use APK endpoint for Android projects' }, { status: 400 });
+    if (project.type === 'android') return NextResponse.json({ error: 'Use APK upload endpoint for Android projects' }, { status: 400 });
+    if (project.type !== 'website' && project.type !== 'playstore') {
+      return NextResponse.json({ error: 'Unsupported project type' }, { status: 400 });
+    }
 
     const body = await request.json().catch(() => ({}));
     const mode = body.mode === 'deep' ? 'deep' : 'simple';
@@ -112,7 +116,38 @@ export async function POST(
     try {
       let result;
 
-      if (mode === 'deep') {
+      if (project.type === 'playstore') {
+        // Play Store listing audits don't have Simple/Deep modes — it's a single
+        // live page scrape regardless of the selected mode.
+        const listingResult = await auditPlayStoreListing(project.url);
+        result = {
+          healthScore: listingResult.score,
+          performanceScore: listingResult.score,
+          seoScore: listingResult.score,
+          accessibilityScore: listingResult.score,
+          securityScore: 100, // not applicable to a store listing — treat as N/A
+          uxScore: listingResult.score,
+          technologyScore: null,
+          contentScore: listingResult.score,
+          responseTime: 0,
+          pageSize: 0,
+          findings: {
+            playStore: {
+              score: listingResult.score,
+              issues: listingResult.issues,
+              passed: listingResult.passed,
+              appName: listingResult.appName,
+              packageId: listingResult.packageId,
+              developer: listingResult.developer,
+              rating: listingResult.rating,
+              ratingCount: listingResult.ratingCount,
+              installs: listingResult.installs,
+              screenshotCount: listingResult.screenshotCount,
+              hasVideo: listingResult.hasVideo,
+            },
+          },
+        } as any;
+      } else if (mode === 'deep') {
         // Try Railway Playwright worker first, fall back to enhanced HTTP
         if (process.env.PLAYWRIGHT_WORKER_URL) {
           try {

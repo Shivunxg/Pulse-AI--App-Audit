@@ -56,11 +56,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
     if (type !== 'android' && !url) {
-      return NextResponse.json({ error: 'URL is required for website projects' }, { status: 400 });
+      return NextResponse.json({ error: 'URL is required for this project type' }, { status: 400 });
+    }
+    if (type === 'playstore' && !/play\.google\.com\/store\/apps\/details\?id=/.test(url || '')) {
+      return NextResponse.json({ error: 'Please provide a valid Play Store URL, e.g. https://play.google.com/store/apps/details?id=com.example.app' }, { status: 400 });
     }
 
-    const projectType = type === 'android' ? 'android' : 'website';
-    const normalizedUrl = url ? (url.startsWith('http') ? url : `https://${url}`) : `android-app://${name.toLowerCase().replace(/\s+/g, '-')}`;
+    const projectType = type === 'android' ? 'android' : type === 'playstore' ? 'playstore' : 'website';
+    const normalizedUrl = url
+      ? (projectType === 'playstore' ? url : (url.startsWith('http') ? url : `https://${url}`))
+      : `android-app://${name.toLowerCase().replace(/\s+/g, '-')}`;
 
     const project = await db.project.create({
       data: { name, url: normalizedUrl, type: projectType, userId: user.id },

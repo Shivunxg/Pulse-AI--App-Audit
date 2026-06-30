@@ -128,7 +128,9 @@ export function AuditResultsView() {
 
   const isAndroid = audit?.findings?.security !== undefined && audit?.findings?.configuration !== undefined;
   const isDeep = audit?.mode === 'deep';
-  const scoreConfig = isAndroid ? androidScoreConfig : webScoreConfig;
+  const isPlayStoreListing = audit?.findings?.playStore !== undefined && audit?.findings?.security === undefined;
+  const playStoreOnlyConfig = [{ key: 'playStore' as const, label: 'Play Store Listing', icon: <Search className="h-4 w-4" /> }];
+  const scoreConfig = isAndroid ? androidScoreConfig : isPlayStoreListing ? playStoreOnlyConfig : webScoreConfig;
 
   const loadAudit = useCallback(() => {
     if (!token || !selectedProjectId || !selectedAuditId) return;
@@ -615,7 +617,7 @@ export function AuditResultsView() {
                       materialDesign: 'technologyScore',
                       playStore: 'contentScore',
                     };
-                    const scoreField = isAndroid ? androidKeyMap[key] : `${key}Score`;
+                    const scoreField = isAndroid || isPlayStoreListing ? (androidKeyMap[key] || 'healthScore') : `${key}Score`;
                     const score = (audit[scoreField as keyof typeof audit] as number) || 0;
                     return <ScoreBar key={key} label={label} score={score} icon={icon} />;
                   })}

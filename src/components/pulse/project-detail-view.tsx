@@ -84,6 +84,7 @@ export function ProjectDetailView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAndroid = project?.type === 'android';
+  const isPlayStore = project?.type === 'playstore';
   const scoreConfig = isAndroid ? androidScoreConfig : webScoreConfig;
 
   const loadProject = useCallback(() => {
@@ -437,7 +438,7 @@ export function ProjectDetailView() {
             {isAndroid ? <Smartphone className="h-5 w-5 text-muted-foreground" /> : <Globe className="h-5 w-5 text-muted-foreground" />}
             <h1 className="text-2xl font-bold tracking-tight truncate">{project.name}</h1>
             <Badge variant="outline" className="text-xs shrink-0">
-              {isAndroid ? 'Android' : 'Website'}
+              {isAndroid ? 'Android' : isPlayStore ? 'Play Store' : 'Website'}
             </Badge>
           </div>
           {!isAndroid && (
@@ -463,6 +464,11 @@ export function ProjectDetailView() {
               {isAuditPolling ? 'Analyzing...' : 'Upload APK'}
             </Button>
           </>
+        ) : isPlayStore ? (
+          <Button onClick={handleRunAudit} disabled={running}>
+            {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+            {running ? 'Auditing Listing...' : 'Run Listing Audit'}
+          </Button>
         ) : (
           <div className="flex items-center gap-2 shrink-0">
             <select
@@ -486,7 +492,7 @@ export function ProjectDetailView() {
       </div>
 
       {/* Simple/Deep badge for websites */}
-      {!isAndroid && latestAudit && (
+      {!isAndroid && !isPlayStore && latestAudit && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Badge variant="outline" className="text-[10px]">
             {auditMode === 'deep' ? 'Deep audits add sitemap, robots.txt, www redirect, and extended SEO checks on top of Simple' : 'Simple audits use fast HTTP analysis for immediate results'}
@@ -557,7 +563,7 @@ export function ProjectDetailView() {
       )}
 
       {/* Continuous Monitoring + Competitor Benchmarking — website projects only */}
-      {!isAndroid && project && (
+      {!isAndroid && !isPlayStore && project && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <MonitoringCard projectId={project.id} />
           <CompetitorCard projectId={project.id} />

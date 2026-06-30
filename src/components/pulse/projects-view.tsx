@@ -57,7 +57,7 @@ export function ProjectsView() {
     setCreating(true);
     try {
       const body: Record<string, string> = { name: newName, type: projectType };
-      if (projectType === 'website') body.url = newUrl;
+      if (projectType === 'website' || projectType === 'playstore') body.url = newUrl;
 
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -119,17 +119,31 @@ export function ProjectsView() {
                     <Smartphone className="h-4 w-4" /> Android App (APK)
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="playstore" id="type-playstore" />
+                  <Label htmlFor="type-playstore" className="flex items-center gap-2 cursor-pointer">
+                    <Smartphone className="h-4 w-4" /> Play Store Listing (URL only)
+                  </Label>
+                </div>
               </RadioGroup>
 
               <div className="space-y-2">
                 <Label htmlFor="proj-name">Project Name</Label>
-                <Input id="proj-name" placeholder={projectType === 'android' ? 'My App' : 'My Website'} value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <Input id="proj-name" placeholder={projectType === 'android' ? 'My App' : projectType === 'playstore' ? 'My App (Store Listing)' : 'My Website'} value={newName} onChange={(e) => setNewName(e.target.value)} />
               </div>
 
               {projectType === 'website' && (
                 <div className="space-y-2">
                   <Label htmlFor="proj-url">Website URL</Label>
                   <Input id="proj-url" placeholder="https://example.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+                </div>
+              )}
+
+              {projectType === 'playstore' && (
+                <div className="space-y-2">
+                  <Label htmlFor="proj-url">Play Store URL</Label>
+                  <Input id="proj-url" placeholder="https://play.google.com/store/apps/details?id=com.example.app" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Audits the live store listing — rating, screenshots, description quality. No APK needed.</p>
                 </div>
               )}
 
@@ -181,7 +195,7 @@ export function ProjectsView() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {project.type === 'android' ? (
+                      {project.type === 'android' || project.type === 'playstore' ? (
                         <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
                       ) : (
                         <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -193,7 +207,7 @@ export function ProjectsView() {
                     </div>
                     <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
-                        {project.type === 'android' ? 'Android' : 'Website'}
+                        {project.type === 'android' ? 'Android' : project.type === 'playstore' ? 'Play Store' : 'Website'}
                       </Badge>
                     </div>
                   </div>
