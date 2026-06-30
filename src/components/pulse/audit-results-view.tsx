@@ -13,7 +13,7 @@ import {
   ArrowLeft, Loader2, AlertTriangle, CheckCircle2, Info,
   AlertCircle, FileText, Lightbulb, Target, Zap, ChevronDown, ChevronUp,
   Gauge, Search, Eye, Shield, MousePointer, XCircle, Activity, Link2,
-  Smartphone, Globe, Clock, BarChart3,
+  Smartphone, Globe, Clock, BarChart3, Share2, Check,
 } from 'lucide-react';
 import type { AuditFindings, AiSummary, AndroidFindings, Finding } from '@/types';
 
@@ -124,6 +124,8 @@ export function AuditResultsView() {
   const [audit, setAudit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   const isAndroid = audit?.findings?.security !== undefined && audit?.findings?.configuration !== undefined;
@@ -186,6 +188,28 @@ export function AuditResultsView() {
   const summary = audit.aiSummary as AiSummary | null;
 
   // ── PDF Export ──────────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    if (!audit || !selectedProjectId) return;
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/projects/${selectedProjectId}/audits/${audit.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ public: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.shareUrl) {
+        await navigator.clipboard.writeText(data.shareUrl).catch(() => {});
+        setShareUrl(data.shareUrl);
+        setTimeout(() => setShareUrl(null), 3000);
+      }
+    } catch (err) {
+      console.error('Share failed:', err);
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const handleExportPdf = async () => {
     if (!audit || !audit.findings) return;
     const f = audit.findings;
@@ -492,13 +516,24 @@ export function AuditResultsView() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf}>
-          {exportingPdf ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating PDF...</>
-          ) : (
-            <><FileText className="h-4 w-4 mr-2" /> Export PDF</>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleShare} disabled={sharing}>
+            {sharing ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> ...</>
+            ) : shareUrl ? (
+              <><Check className="h-4 w-4 mr-2 text-emerald-500" /> Link Copied</>
+            ) : (
+              <><Share2 className="h-4 w-4 mr-2" /> Share</>
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf}>
+            {exportingPdf ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating PDF...</>
+            ) : (
+              <><FileText className="h-4 w-4 mr-2" /> Export PDF</>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Deep audit — extra metrics bar */}

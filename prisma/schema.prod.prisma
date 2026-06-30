@@ -65,6 +65,9 @@ model Audit {
   aiSummary     String   @default("{}")
   responseTime  Float?
   pageSize      Float?
+  isPublic      Boolean  @default(false)
+  publicSlug    String?  @unique
+  publicViews   Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime  @updatedAt
 }
