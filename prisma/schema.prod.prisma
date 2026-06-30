@@ -41,6 +41,8 @@ model Project {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   audits    Audit[]
+  competitors Competitor[]
+  monitorSchedule MonitorSchedule?
   createdAt DateTime @default(now())
   updatedAt DateTime  @updatedAt
 }
@@ -65,4 +67,32 @@ model Audit {
   pageSize      Float?
   createdAt     DateTime @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model Competitor {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  url         String
+  lastAuditId String?
+  comparison  String   @default("{}") // JSON: score deltas, feature comparison
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MonitorSchedule {
+  id            String   @id @default(cuid())
+  projectId     String   @unique
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  enabled       Boolean  @default(false)
+  frequency     String   @default("weekly") // daily | weekly | monthly
+  mode          String   @default("simple") // simple | deep
+  lastRunAt     DateTime?
+  nextRunAt     DateTime?
+  alertOnDrop   Boolean  @default(true)
+  dropThreshold Int      @default(10) // alert if health score drops by N points
+  alertEmail    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

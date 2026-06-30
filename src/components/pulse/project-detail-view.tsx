@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HealthScoreRing } from './health-score-ring';
 import { ScoreBar } from './score-bar';
+import { MonitoringCard } from './monitoring-card';
+import { CompetitorCard } from './competitor-card';
 import {
   ArrowLeft, Play, Loader2, Clock, CheckCircle2, XCircle,
   Globe, ExternalLink, Zap, FileText, Smartphone, Upload,
-  Gauge, Search, Eye, Shield, MousePointer, Layers, Cpu, Lock, Code, X,
+  Gauge, Search, Eye, Shield, MousePointer, Layers, Cpu, Lock, Code, X, Sparkles, Store,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuditFindings, AiSummary } from '@/types';
@@ -59,6 +61,8 @@ const androidScoreConfig = [
   { key: 'accessibilityScore' as const, label: 'Privacy', icon: <Eye className="h-4 w-4" /> },
   { key: 'uxScore' as const, label: 'Code Quality', icon: <Code className="h-4 w-4" /> },
   { key: 'performanceScore' as const, label: 'Performance', icon: <Cpu className="h-4 w-4" /> },
+  { key: 'technologyScore' as const, label: 'Material Design', icon: <Sparkles className="h-4 w-4" /> },
+  { key: 'contentScore' as const, label: 'Play Store / ASO', icon: <Store className="h-4 w-4" /> },
 ];
 
 export function ProjectDetailView() {
@@ -550,6 +554,14 @@ export function ProjectDetailView() {
             <p className="text-sm text-muted-foreground mt-1">{isAndroid ? 'Could not analyze the APK. Ensure it is a valid Android APK file.' : `Could not reach ${project.url}. Check the URL and try again.`}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Continuous Monitoring + Competitor Benchmarking — website projects only */}
+      {!isAndroid && project && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MonitoringCard projectId={project.id} />
+          <CompetitorCard projectId={project.id} />
+        </div>
       )}
 
       {/* Audit History */}

@@ -108,6 +108,39 @@ export interface AndroidFindings {
   privacy: AndroidPrivacyFindings;
   codeQuality: AndroidCodeQualityFindings;
   performance: AndroidPerfFindings;
+  materialDesign?: AndroidMaterialDesignFindings;
+  playStore?: AndroidPlayStoreFindings;
+}
+
+export interface AndroidMaterialDesignFindings {
+  score: number;
+  usesMaterial3: boolean;
+  usesMaterialComponents: boolean;
+  hasFab: boolean;
+  hasBottomNav: boolean;
+  hasNavigationDrawer: boolean;
+  hasAppBar: boolean;
+  themeAttributesFound: string[];
+  iconCount: number;
+  hasAdaptiveIcon: boolean;
+  hasDarkThemeSupport: boolean;
+  issues: Finding[];
+  passed: Finding[];
+}
+
+export interface AndroidPlayStoreFindings {
+  score: number;
+  packageName: string;
+  appName: string | null;
+  hasLauncherIcon: boolean;
+  versionName: string | null;
+  targetSdkVersion: number | null;
+  meetsTargetSdkPolicy: boolean; // Google requires recent target SDK
+  permissionCount: number;
+  hasPrivacyPolicyUrl: boolean;
+  estimatedAsoIssues: string[];
+  issues: Finding[];
+  passed: Finding[];
 }
 
 export interface AndroidSecurityFindings {

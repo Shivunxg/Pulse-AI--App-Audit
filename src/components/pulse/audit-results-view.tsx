@@ -33,6 +33,8 @@ const androidScoreConfig = [
   { key: 'privacy' as const, label: 'Privacy', icon: <Eye className="h-4 w-4" /> },
   { key: 'codeQuality' as const, label: 'Code Quality', icon: <Gauge className="h-4 w-4" /> },
   { key: 'performance' as const, label: 'Performance', icon: <AlertTriangle className="h-4 w-4" /> },
+  { key: 'materialDesign' as const, label: 'Material Design', icon: <MousePointer className="h-4 w-4" /> },
+  { key: 'playStore' as const, label: 'Play Store / ASO', icon: <Activity className="h-4 w-4" /> },
 ];
 
 function SeverityIcon({ severity }: { severity: string }) {
@@ -601,7 +603,20 @@ export function AuditResultsView() {
                 <HealthScoreRing score={audit.healthScore || 0} size={150} strokeWidth={12} label="Product Health Score" />
                 <div className="flex-1 w-full space-y-4">
                   {scoreConfig.map(({ key, label, icon }) => {
-                    const score = audit[`${key}Score` as keyof typeof audit] as number || 0;
+                    // Android category keys (security, configuration, privacy, codeQuality,
+                    // performance, materialDesign, playStore) don't match audit.*Score field
+                    // names 1:1 — map them explicitly. Web keys already match directly.
+                    const androidKeyMap: Record<string, string> = {
+                      security: 'securityScore',
+                      configuration: 'seoScore',
+                      privacy: 'accessibilityScore',
+                      codeQuality: 'uxScore',
+                      performance: 'performanceScore',
+                      materialDesign: 'technologyScore',
+                      playStore: 'contentScore',
+                    };
+                    const scoreField = isAndroid ? androidKeyMap[key] : `${key}Score`;
+                    const score = (audit[scoreField as keyof typeof audit] as number) || 0;
                     return <ScoreBar key={key} label={label} score={score} icon={icon} />;
                   })}
                 </div>

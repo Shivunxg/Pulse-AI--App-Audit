@@ -9,8 +9,17 @@
     },
     "src/app/api/projects/[id]/audits/[auditId]/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/cron/run-monitors/route.ts": {
+      "maxDuration": 300
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/run-monitors",
+      "schedule": "0 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/dashboard",

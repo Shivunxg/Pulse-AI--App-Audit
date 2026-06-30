@@ -726,6 +726,190 @@ function analyzePerformance(zip: AdmZip, apkSizeBytes: number): AndroidPerfFindi
   };
 }
 
+// ── Material Design Audit ─────────────────────────────────────────────────────
+
+function analyzeMaterialDesign(manifest: Record<string, any>, allFileStrings: string, zip: AdmZip) {
+  const issues: Finding[] = [];
+  const passed: Finding[] = [];
+
+  // Material library detection via dependency strings baked into DEX
+  const usesMaterial3 = /com\.google\.android\.material|Material3|MaterialTheme3|androidx\.compose\.material3/i.test(allFileStrings);
+  const usesMaterialComponents = /com\.google\.android\.material|MaterialButton|MaterialCardView|MaterialComponents/i.test(allFileStrings);
+  const hasFab = /FloatingActionButton|ExtendedFloatingActionButton/i.test(allFileStrings);
+  const hasBottomNav = /BottomNavigationView|NavigationBarView/i.test(allFileStrings);
+  const hasNavigationDrawer = /NavigationDrawer|DrawerLayout/i.test(allFileStrings);
+  const hasAppBar = /AppBarLayout|Toolbar|TopAppBar/i.test(allFileStrings);
+
+  // Theme attributes — look for Material theme parents in styles.xml strings
+  const themeAttributesFound: string[] = [];
+  if (/Theme\.Material3/i.test(allFileStrings)) themeAttributesFound.push('Theme.Material3');
+  if (/Theme\.MaterialComponents/i.test(allFileStrings)) themeAttributesFound.push('Theme.MaterialComponents');
+  if (/Theme\.AppCompat/i.test(allFileStrings)) themeAttributesFound.push('Theme.AppCompat (legacy)');
+
+  // Adaptive icon — check for mipmap-anydpi-v26 adaptive icon XML
+  const hasAdaptiveIcon = zip.getEntries().some(e =>
+    e.entryName.includes('mipmap-anydpi') && e.entryName.endsWith('.xml')
+  );
+
+  // Dark theme support — values-night resource qualifier
+  const hasDarkThemeSupport = zip.getEntries().some(e => e.entryName.includes('values-night/'));
+
+  // Icon count (launcher icon density variants)
+  const iconCount = zip.getEntries().filter(e =>
+    /mipmap-(m|h|xh|xxh|xxxh)dpi\/ic_launcher/.test(e.entryName)
+  ).length;
+
+  // Findings
+  if (usesMaterial3) {
+    passed.push(createFinding('materialDesign', 'passed', 'Material 3 Detected',
+      'App uses Material 3 (Material You) design system — the current Google design standard.'));
+  } else if (usesMaterialComponents) {
+    issues.push(createFinding('materialDesign', 'info', 'Material 2 (Not Material 3)',
+      'App uses Material Components (Material 2) rather than Material 3.',
+      'Migrate to Material 3 for dynamic color, updated components, and current design guidelines.'));
+  } else {
+    issues.push(createFinding('materialDesign', 'warning', 'No Material Design Library Detected',
+      'No com.google.android.material dependency detected. App may use custom or outdated UI components.',
+      'Adopt Material Components for Android (or Material 3) for consistent, accessible, platform-standard UI.'));
+  }
+
+  if (hasFab) passed.push(createFinding('materialDesign', 'passed', 'FAB Pattern Used', 'Floating Action Button detected — follows Material guidance for primary actions.'));
+
+  if (hasBottomNav || hasNavigationDrawer) {
+    passed.push(createFinding('materialDesign', 'passed', 'Standard Navigation Pattern',
+      `${hasBottomNav ? 'Bottom navigation' : 'Navigation drawer'} detected — follows Material navigation guidelines.`));
+  } else {
+    issues.push(createFinding('materialDesign', 'info', 'No Standard Navigation Pattern Detected',
+      'No BottomNavigationView or NavigationDrawer detected.',
+      'Use BottomNavigationView (3-5 top-level destinations) or NavigationDrawer (more destinations) per Material guidelines.'));
+  }
+
+  if (hasAppBar) passed.push(createFinding('materialDesign', 'passed', 'App Bar Present', 'Toolbar/AppBarLayout detected — provides consistent navigation and branding.'));
+  else issues.push(createFinding('materialDesign', 'warning', 'No App Bar Detected', 'No Toolbar or AppBarLayout found.', 'Add a Material AppBarLayout/Toolbar for consistent top-level navigation and title display.'));
+
+  if (hasAdaptiveIcon) passed.push(createFinding('materialDesign', 'passed', 'Adaptive Icon Configured', 'App provides an adaptive icon (mipmap-anydpi-v26), required for modern Android launchers.'));
+  else issues.push(createFinding('materialDesign', 'warning', 'No Adaptive Icon', 'No adaptive icon found. Android 8.0+ launchers expect adaptive icons for consistent shape masking.', 'Add an adaptive icon via mipmap-anydpi-v26/ic_launcher.xml with foreground/background layers.'));
+
+  if (hasDarkThemeSupport) passed.push(createFinding('materialDesign', 'passed', 'Dark Theme Supported', 'values-night resources detected — app supports system dark mode.'));
+  else issues.push(createFinding('materialDesign', 'info', 'No Dark Theme Resources', 'No values-night resource folder detected.', 'Add dark theme support via values-night/ resources — users increasingly expect this.'));
+
+  if (iconCount >= 4) passed.push(createFinding('materialDesign', 'passed', 'Multiple Icon Densities', `${iconCount} launcher icon density variants found — ensures crisp icons across device DPIs.`));
+  else if (iconCount > 0) issues.push(createFinding('materialDesign', 'info', 'Limited Icon Densities', `Only ${iconCount} launcher icon variant(s) found.`, 'Provide icons for all density buckets (mdpi through xxxhdpi) or use a single adaptive vector icon.'));
+
+  const score = Math.max(0, Math.min(100,
+    100
+    - (!usesMaterial3 && !usesMaterialComponents ? 25 : usesMaterial3 ? 0 : 10)
+    - (!hasBottomNav && !hasNavigationDrawer ? 10 : 0)
+    - (!hasAppBar ? 15 : 0)
+    - (!hasAdaptiveIcon ? 15 : 0)
+    - (!hasDarkThemeSupport ? 10 : 0)
+  ));
+
+  return {
+    score, usesMaterial3, usesMaterialComponents, hasFab, hasBottomNav, hasNavigationDrawer,
+    hasAppBar, themeAttributesFound, iconCount, hasAdaptiveIcon, hasDarkThemeSupport, issues, passed,
+  };
+}
+
+// ── Play Store / ASO Audit ──────────────────────────────────────────────────────
+
+function analyzePlayStore(
+  manifest: Record<string, any>,
+  packageName: string,
+  versionName: string | null,
+  targetSdkVersion: number | null,
+  permissionCount: number,
+  allFileStrings: string,
+  zip: AdmZip
+) {
+  const issues: Finding[] = [];
+  const passed: Finding[] = [];
+
+  const hasLauncherIcon = zip.getEntries().some(e => /mipmap.*ic_launcher/.test(e.entryName) || /drawable.*ic_launcher/.test(e.entryName));
+
+  // App name — best-effort extraction from manifest label or strings.xml
+  const labelMatch = JSON.stringify(manifest).match(/"label"\s*:\s*"([^"]+)"/);
+  const appName = labelMatch ? labelMatch[1] : null;
+
+  // Google Play target SDK policy: as of late 2024/2025, new apps and updates
+  // must target a recent API level (typically current_year_API - 1 or current).
+  // Using API 33 (Android 13) as a conservative floor for "meets policy" check.
+  const CURRENT_MIN_TARGET_SDK = 33;
+  const meetsTargetSdkPolicy = targetSdkVersion != null && targetSdkVersion >= CURRENT_MIN_TARGET_SDK;
+
+  // Privacy policy URL — check manifest meta-data or strings for typical privacy policy patterns
+  const hasPrivacyPolicyUrl = /privacy[-_]?policy/i.test(allFileStrings) && /https?:\/\//.test(allFileStrings);
+
+  // Estimated ASO issues — heuristic checks since we can't access the live Store listing
+  const estimatedAsoIssues: string[] = [];
+  if (!appName || appName.length < 3) estimatedAsoIssues.push('App name not clearly identifiable from manifest');
+  if (permissionCount > 15) estimatedAsoIssues.push('High permission count may increase install hesitation and trigger Play Store review scrutiny');
+  if (!hasLauncherIcon) estimatedAsoIssues.push('No clear launcher icon found — store listing icon should match in-app icon');
+
+  // Findings
+  if (!hasLauncherIcon) {
+    issues.push(createFinding('playStore', 'critical', 'No Launcher Icon Found',
+      'Could not detect a launcher icon in the APK. Play Store requires a 512×512 high-res icon for the listing.',
+      'Ensure ic_launcher is present in mipmap/drawable folders, and prepare a separate 512×512 PNG for the Play Console listing.'));
+  } else {
+    passed.push(createFinding('playStore', 'passed', 'Launcher Icon Present', 'App icon detected in APK resources.'));
+  }
+
+  if (meetsTargetSdkPolicy) {
+    passed.push(createFinding('playStore', 'passed', 'Meets Target SDK Policy',
+      `Target SDK ${targetSdkVersion} meets Google Play's current minimum target API requirement.`));
+  } else {
+    issues.push(createFinding('playStore', 'critical', 'Target SDK Below Play Store Policy',
+      `Target SDK is ${targetSdkVersion ?? 'unknown'}. Google Play requires apps to target a recent API level (33+) or risk being blocked from new installs/updates.`,
+      `Update targetSdkVersion to ${CURRENT_MIN_TARGET_SDK} or higher and test thoroughly against new platform behaviors.`));
+  }
+
+  if (hasPrivacyPolicyUrl) {
+    passed.push(createFinding('playStore', 'passed', 'Privacy Policy Reference Found',
+      'A privacy policy URL pattern was detected in the app — required for Play Store listing if collecting user data.'));
+  } else {
+    issues.push(createFinding('playStore', 'warning', 'No Privacy Policy URL Detected',
+      'No privacy policy reference found in app strings. Play Console requires a privacy policy URL for most app categories.',
+      'Add a privacy policy URL in the Play Console listing and link it from within the app (Settings/About screen).'));
+  }
+
+  if (permissionCount > 15) {
+    issues.push(createFinding('playStore', 'warning', 'High Permission Count',
+      `App requests ${permissionCount} permissions. Excessive permissions reduce install conversion and may trigger Play Store policy review.`,
+      'Audit and remove unused permissions. Each requested permission should map to a clearly justified feature.'));
+  } else {
+    passed.push(createFinding('playStore', 'passed', 'Reasonable Permission Count',
+      `App requests ${permissionCount} permissions — within a reasonable range for store conversion.`));
+  }
+
+  if (!versionName) {
+    issues.push(createFinding('playStore', 'warning', 'No Version Name Set',
+      'versionName is missing from the manifest. Play Console displays this to users.',
+      'Set a clear semantic versionName (e.g. "2.4.1") in build.gradle.'));
+  } else {
+    passed.push(createFinding('playStore', 'passed', 'Version Name Set', `App reports version "${versionName}" to users.`));
+  }
+
+  // General ASO guidance (informational — can't verify live Store listing from APK alone)
+  issues.push(createFinding('playStore', 'info', 'Live Store Listing Not Analyzed',
+    'This audit analyzes the APK binary only. Title, description, screenshots, ratings, and reviews require live Play Store data.',
+    'For full ASO analysis (keyword rankings, screenshot quality, review sentiment), connect Play Console API access or provide the Play Store listing URL.'));
+
+  const score = Math.max(0, Math.min(100,
+    100
+    - (!hasLauncherIcon ? 25 : 0)
+    - (!meetsTargetSdkPolicy ? 30 : 0)
+    - (!hasPrivacyPolicyUrl ? 15 : 0)
+    - (permissionCount > 15 ? 10 : 0)
+    - (!versionName ? 5 : 0)
+  ));
+
+  return {
+    score, packageName, appName, hasLauncherIcon, versionName, targetSdkVersion,
+    meetsTargetSdkPolicy, permissionCount, hasPrivacyPolicyUrl, estimatedAsoIssues, issues, passed,
+  };
+}
+
 export interface AndroidAuditResult {
   findings: AndroidFindings;
   healthScore: number;
@@ -734,6 +918,8 @@ export interface AndroidAuditResult {
   seoScore: number; // Maps to configuration
   accessibilityScore: number; // Maps to privacy
   uxScore: number; // Maps to code quality
+  technologyScore: number; // Maps to Material Design
+  contentScore: number; // Maps to Play Store/ASO
   responseTime: number;
   pageSize: number; // APK size
 }
@@ -788,6 +974,16 @@ export async function runAndroidAudit(apkBuffer: Buffer, apkSize: number): Promi
   const privacy = analyzePrivacy(manifest, allFileStrings, zip);
   const codeQuality = analyzeCodeQuality(zip, allFileStrings);
   const performance = analyzePerformance(zip, apkSize);
+  const materialDesign = analyzeMaterialDesign(manifest, allFileStrings, zip);
+  const playStore = analyzePlayStore(
+    manifest,
+    configuration.packageName,
+    configuration.versionName,
+    configuration.targetSdkVersion,
+    security.totalPermissions,
+    allFileStrings,
+    zip
+  );
 
   const responseTime = Date.now() - startTime;
 
@@ -802,23 +998,29 @@ export async function runAndroidAudit(apkBuffer: Buffer, apkSize: number): Promi
   const accessibilityScore = privacy.score; // Privacy mapped to accessibilityScore
   const uxScore = codeQuality.score; // Code quality mapped to uxScore
   const performanceScore = performance.score;
+  const technologyScore = materialDesign.score; // Material Design mapped to technologyScore
+  const contentScore = playStore.score; // Play Store/ASO mapped to contentScore
 
   const healthScore = Math.round(
-    securityScore * 0.30 +
-    performanceScore * 0.20 +
+    securityScore * 0.25 +
+    performanceScore * 0.15 +
     seoScore * 0.15 +
-    accessibilityScore * 0.20 +
-    uxScore * 0.15
+    accessibilityScore * 0.15 +
+    uxScore * 0.10 +
+    technologyScore * 0.10 +
+    contentScore * 0.10
   );
 
   return {
-    findings: { security, configuration, privacy, codeQuality, performance },
+    findings: { security, configuration, privacy, codeQuality, performance, materialDesign, playStore },
     healthScore,
     securityScore,
     performanceScore,
     seoScore,
     accessibilityScore,
     uxScore,
+    technologyScore,
+    contentScore,
     responseTime,
     pageSize: apkSize, // APK size stored in pageSize field
   };
