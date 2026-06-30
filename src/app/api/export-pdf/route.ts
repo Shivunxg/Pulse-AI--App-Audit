@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
-import { db } from '@/lib/db';
 import { checkPdfExportAllowed } from '@/lib/tiers';
 
 export const maxDuration = 30;
@@ -12,8 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const dbUser = await db.user.findUnique({ where: { id: user.id } });
-    const tier = (dbUser as any)?.tier || 'free';
+    const tier = user.tier || 'free';
 
     const gateCheck = checkPdfExportAllowed(tier);
     if (!gateCheck.allowed) {

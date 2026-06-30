@@ -11,6 +11,9 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string | null;
+  tier?: string;
+  auditsThisMonth?: number;
+  auditsResetAt?: Date;
 }
 
 // --- Local password helpers (fallback when Firebase is not configured) ---
@@ -70,11 +73,14 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
   if (isFirebaseConfigured()) {
     try {
       const decoded = await verifyToken(token);
-      await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
+      const localUser = await ensureLocalUser(decoded.uid, decoded.email!, decoded.name || null);
       return {
         id: decoded.uid,
         email: decoded.email || '',
         name: decoded.name || null,
+        tier: (localUser as any)?.tier || 'free',
+        auditsThisMonth: (localUser as any)?.auditsThisMonth || 0,
+        auditsResetAt: (localUser as any)?.auditsResetAt || new Date(),
       };
     } catch (err) {
       return null;
@@ -84,7 +90,14 @@ export async function getUserFromRequest(request: Request): Promise<AuthUser | n
   // Fallback: local session token
   const localUser = await validateLocalSession(token);
   if (localUser) {
-    return { id: localUser.id, email: localUser.email, name: localUser.name };
+    return {
+      id: localUser.id,
+      email: localUser.email,
+      name: localUser.name,
+      tier: (localUser as any).tier || 'free',
+      auditsThisMonth: (localUser as any).auditsThisMonth || 0,
+      auditsResetAt: (localUser as any).auditsResetAt || new Date(),
+    };
   }
   return null;
 }
@@ -135,13 +148,14 @@ export async function logoutUser(token: string): Promise<void> {
 
 // --- Internal: ensure local user record for DB relations ---
 
-async function ensureLocalUser(id: string, email: string, name: string | null): Promise<void> {
+async function ensureLocalUser(id: string, email: string, name: string | null) {
   const existing = await db.user.findUnique({ where: { id } });
   if (!existing) {
-    await db.user.create({
+    return db.user.create({
       data: { id, email: email.toLowerCase(), name, passwordHash: '__firebase__' },
     });
   } else if (name && existing.name !== name) {
-    await db.user.update({ where: { id }, data: { name } });
+    return db.user.update({ where: { id }, data: { name } });
   }
+  return existing;
 }

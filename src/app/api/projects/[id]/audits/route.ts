@@ -81,12 +81,9 @@ export async function POST(
     console.log(`[audit] mode=${mode} body.mode=${body.mode} workerUrl="${workerUrl}" workerSet=${!!workerUrl}`);
 
     // ── Tier gating: check audit quota + deep audit access ──────────────────
-    const dbUser = await db.user.findUnique({ where: { id: user.id } });
-    if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
-    const tier = (dbUser as any).tier || 'free';
-    const auditsThisMonth = (dbUser as any).auditsThisMonth || 0;
-    const auditsResetAt = (dbUser as any).auditsResetAt || new Date();
+    const tier = user.tier || 'free';
+    const auditsThisMonth = user.auditsThisMonth || 0;
+    const auditsResetAt = user.auditsResetAt || new Date();
 
     const gateCheck = checkAuditAllowed(tier, auditsThisMonth, auditsResetAt, mode);
     if (!gateCheck.allowed) {
