@@ -3,7 +3,6 @@
   "framework": "nextjs",
   "buildCommand": "cp prisma/schema.prod.prisma prisma/schema.prisma && npx prisma generate && next build",
   "installCommand": "npm install",
-  "regions": ["sin1"],
   "functions": {
     "src/app/api/projects/[id]/audits/route.ts": {
       "maxDuration": 60
