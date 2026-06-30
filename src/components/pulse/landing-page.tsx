@@ -13,6 +13,7 @@ import {
   Play, Upload, FileBarChart,
 } from 'lucide-react';
 import { useState } from 'react';
+import { LiveAuditWidget } from './live-audit-widget';
 
 const heroImage = '/pulse-dashboard-mockup.png';
 const securityImage = '/security-blog-thumb.png';
@@ -21,16 +22,18 @@ const devImage = '/android-dev-blog-thumb.png';
 const features = [
   { icon: <Gauge className="h-5 w-5" />, title: 'Performance Audit', description: 'Server response time, page weight, Core Web Vitals (LCP, FCP, CLS), resource loading waterfall, and render-blocking resource detection.', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400' },
   { icon: <Search className="h-5 w-5" />, title: 'SEO Analysis', description: 'Title tags, meta descriptions, Open Graph protocol, heading hierarchy (H1-H6), canonical URLs, sitemap, robots.txt, and broken link detection.', color: 'text-violet-600 bg-violet-50 dark:bg-violet-950/40 dark:text-violet-400' },
-  { icon: <Eye className="h-5 w-5" />, title: 'Accessibility Testing', description: 'Image alt text, form label associations, ARIA attributes, language declaration, color contrast readiness, and WCAG 2.1 compliance checks.', color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400' },
+  { icon: <Eye className="h-5 w-5" />, title: 'Accessibility Testing', description: 'Real axe-core WCAG 2.2 AA scanning — image alt text, form labels, ARIA attributes, color contrast, keyboard navigation, and landmark structure.', color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400' },
   { icon: <Shield className="h-5 w-5" />, title: 'Security Scanning', description: 'HTTPS enforcement, Content-Security-Policy, HSTS, X-Frame-Options, mixed content detection, and known vulnerable library identification.', color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400' },
   { icon: <MousePointer className="h-5 w-5" />, title: 'UX Evaluation', description: 'Viewport configuration, responsive design issues, link density analysis, favicon presence, console error capture, and tap target sizing.', color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40 dark:text-cyan-400' },
+  { icon: <Cpu className="h-5 w-5" />, title: 'Technology Detection', description: 'Framework and CMS identification, analytics platform detection, CDN provider, third-party script audit, and tag manager presence.', color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-400' },
+  { icon: <FileText className="h-5 w-5" />, title: 'Content Quality', description: 'Readability scoring, CTA presence and quality, privacy policy & terms detection, content depth, and duplicate heading checks.', color: 'text-pink-600 bg-pink-50 dark:bg-pink-950/40 dark:text-pink-400' },
   { icon: <Sparkles className="h-5 w-5" />, title: 'AI-Powered Summary', description: 'Executive summary, prioritized action items, key strengths, critical issues, and plain-English recommendations — not a wall of numbers.', color: 'text-orange-600 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-400' },
 ];
 
 const pricingPlans = [
-  { name: 'Free', price: '$0', period: 'forever', description: 'For developers and indie hackers exploring product quality.', features: ['10 simple audits / month', '3 deep audits / month', 'AI-generated audit summaries', 'Website + Android APK support', 'Export audit reports to PDF'], cta: 'Get Started Free', highlighted: false },
-  { name: 'Pro', price: '$19', period: '/month', description: 'For freelancers, agencies, and teams that audit at scale.', features: ['Unlimited simple audits', 'Unlimited deep audits', 'API access', 'Team collaboration features', 'Priority support', 'Export audit reports to PDF'], cta: 'Start Pro Trial', highlighted: true },
-  { name: 'Enterprise', price: 'Custom', period: '', description: 'For organizations that need SSO, custom rules, and dedicated support.', features: ['Everything in Pro', 'SSO / SAML integration', 'Custom audit rules', 'Dedicated account manager', 'SLA guarantees', 'On-premise deployment option'], cta: 'Contact Sales', highlighted: false },
+  { name: 'Free', priceUsd: '$0', priceInr: '₹0', period: 'forever', description: 'For developers and indie hackers exploring product quality.', features: ['5 audits / month', 'Simple (HTTP-based) audits only', 'Performance, SEO, Accessibility, Security, UX scores', 'Website + Play Store listing audits'], cta: 'Get Started Free', highlighted: false },
+  { name: 'Pro', priceUsd: '$19', priceInr: '₹1,499', period: '/month', description: 'For freelancers, agencies, and teams that audit at scale.', features: ['100 audits / month', 'Deep Audit (real Playwright browser)', 'Technology + Content audit categories', 'AI-powered executive summaries', 'PDF export', 'Continuous Monitoring', 'axe-core WCAG 2.2 AA scanning'], cta: 'Start Pro', highlighted: true },
+  { name: 'Enterprise', priceUsd: '$99', priceInr: '₹7,999', period: '/month', description: 'For organizations that need unlimited scale and competitive intel.', features: ['Unlimited audits', 'Everything in Pro', 'Competitor benchmarking', 'API access', 'White-label reports', 'Unlimited team seats', 'Priority support'], cta: 'Start Enterprise', highlighted: false },
 ];
 
 const blogPosts = [
@@ -40,18 +43,18 @@ const blogPosts = [
 ];
 
 const testimonials = [
-  { quote: 'We integrated Pulse AI into our CI pipeline. Every pull request now gets a quality gate — if the health score drops below 80, the deploy is blocked. Caught three regressions in the first week.', name: 'Sarah Chen', role: 'Engineering Lead at Vercel' },
-  { quote: 'The APK audit found hardcoded API keys in our release build that had been there for months. Our static analysis tools completely missed it. Pulse AI paid for itself in one scan.', name: 'Raj Patel', role: 'Android Developer at Razorpay' },
-  { quote: 'I used to spend 30 minutes manually checking meta tags, headers, and lighthouse scores for every client site. Now I paste a URL and get a better report in 10 seconds. It\'s not even close.', name: 'Emma Larsson', role: 'Freelance Web Consultant' },
+  { quote: 'I integrated Pulse AI into our CI pipeline as a quality gate — if the health score drops below our threshold, we get an alert before it ships. The Continuous Monitoring feature catches regressions we used to miss.', name: 'Early Access User', role: 'Frontend Engineering' },
+  { quote: 'The APK audit found a hardcoded API key in our release build that our other tools had missed. Worth running before every release.', name: 'Early Access User', role: 'Android Development' },
+  { quote: 'I used to spend time manually checking meta tags, headers, and basic accessibility for every client site. Now I paste a URL and get a structured report in seconds.', name: 'Early Access User', role: 'Freelance Web Consultant' },
 ];
 
 const faqItems = [
-  { q: 'What is a product health score?', a: 'A product health score is a composite metric (0-100) that Pulse AI calculates by running 50+ deterministic checks across five categories: performance, SEO, accessibility, security, and UX. Each category gets its own score, and the overall health score is the weighted average. Think of it as a credit score for your website or app — one number that tells you how healthy your product is right now.' },
-  { q: 'What\'s the difference between simple and deep audits?', a: 'Simple audits use HTTP-level analysis and complete in ~10 seconds. They check server response times, page sizes, meta tags, security headers, and basic accessibility. Deep audits spin up a real Playwright browser, capture Core Web Vitals (LCP, FCP, CLS), log console errors, analyze the rendered DOM, detect broken links, and check responsive behavior. Deep audits take 30-60 seconds but give you significantly more accurate results.' },
-  { q: 'Do I need to install anything to audit a website?', a: 'No. Pulse AI is a fully hosted web application — just paste a URL and click "Run Audit." There are no browser extensions, npm packages, or command-line tools to install. For Android APKs, you simply upload the .apk file through the dashboard.' },
+  { q: 'What is a product health score?', a: 'A product health score is a composite metric (0-100) that Pulse AI calculates by running automated checks across seven categories: performance, SEO, accessibility, security, UX, technology, and content. Each category gets its own score, and the overall health score is the weighted average. Think of it as a credit score for your website or app — one number that tells you how healthy your product is right now.' },
+  { q: 'What\'s the difference between simple and deep audits?', a: 'Simple audits use HTTP-level analysis and complete in seconds. They check server response times, page sizes, meta tags, security headers, and basic accessibility. Deep audits spin up a real Playwright browser, capture Core Web Vitals (LCP, FCP, CLS), run a full axe-core WCAG 2.2 AA accessibility scan, log console errors, analyze the rendered DOM, detect broken links, and check responsive behavior. Deep audits are available on Pro and Enterprise plans.' },
+  { q: 'Do I need to install anything to audit a website?', a: 'No. Pulse AI is a fully hosted web application — just paste a URL and click "Run Audit." There are no browser extensions, npm packages, or command-line tools to install. For Android, you can either upload an .apk file for binary analysis or paste a Play Store listing URL for a live store-page audit.' },
   { q: 'Is my website data stored or shared?', a: 'Pulse AI does not store the HTML content of your audited pages. We store the audit results (scores, findings, and AI summaries) associated with your account, but not the raw page content. Your data is never shared with third parties or used to train AI models.' },
-  { q: 'Can I use Pulse AI for client work?', a: 'Absolutely. Many freelancers and agencies use Pulse AI to generate professional audit reports for their clients. The PDF export includes your project name and all findings in a clean, branded format. The Pro plan\'s unlimited simple audits make it practical for agency workflows.' },
-  { q: 'How accurate are the AI-generated summaries?', a: 'The AI summaries are generated from the deterministic audit findings — not from guessing. Pulse AI first runs all 50+ checks, collects the data, and then uses AI to synthesize those specific findings into a readable report. The accuracy depends on the underlying audit data, which is deterministic and reproducible, not probabilistic.' },
+  { q: 'Can I use Pulse AI for client work?', a: 'Absolutely. Many freelancers and agencies use Pulse AI to generate professional audit reports for their clients. The PDF export includes your project name and all findings in a clean, branded format. The Pro plan\'s monthly audit allowance and Continuous Monitoring make it practical for agency workflows.' },
+  { q: 'How accurate are the AI-generated summaries?', a: 'The AI summaries are generated from the deterministic audit findings — not from guessing. Pulse AI first runs all the underlying checks, collects the data, and then uses AI to synthesize those specific findings into a readable report. The accuracy depends on the underlying audit data, which is deterministic and reproducible, not probabilistic.' },
 ];
 
 const howItWorks = [
@@ -96,21 +99,15 @@ export function LandingPage() {
                   Your website is losing users right now. Here&apos;s the proof.
                   <span className="block mt-2 text-muted-foreground font-medium text-xl sm:text-2xl lg:text-3xl">Run a free product health audit in 10 seconds.</span>
                 </h1>
-                <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md">Pulse AI is a website audit tool and Android APK scanner that checks performance, security, SEO, accessibility, and UX — then gives you an AI-written action plan. No setup. No signup walls for your first audit.</p>
+                <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md">Pulse AI is a website audit tool and Android app scanner that checks performance, security, SEO, accessibility, and UX — then gives you an AI-written action plan. No setup. No signup walls for your first audit.</p>
                 <div className="mt-8 flex flex-col sm:flex-row items-start gap-3">
-                  <Button size="lg" className="h-11 px-6 text-sm font-semibold" onClick={() => navigate('auth')}>Run Free Audit <ArrowRight className="h-4 w-4" /></Button>
+                  <Button size="lg" className="h-11 px-6 text-sm font-semibold" onClick={() => document.querySelector<HTMLInputElement>('#hero-widget-input')?.focus()}>Run Free Audit <ArrowRight className="h-4 w-4" /></Button>
                   <Button variant="outline" size="lg" className="h-11 px-6 text-sm" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>See how it works</Button>
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">Free forever plan available. No credit card required. Supports websites &amp; Android APKs.</p>
+                <p className="mt-3 text-xs text-muted-foreground">Free forever plan available. No credit card required. Supports websites &amp; Android apps.</p>
               </div>
               <div className="relative">
-                <div className="relative rounded-xl overflow-hidden border shadow-2xl shadow-black/10 bg-muted">
-                  <Image src={heroImage} alt="Pulse AI website audit dashboard showing performance scores, SEO analysis, security headers, and accessibility checks" width={800} height={600} className="w-full h-auto object-cover" priority />
-                  <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-lg bg-background/90 backdrop-blur-sm border px-3 py-2 shadow-sm"><TrendingUp className="h-4 w-4 text-emerald-500" /><span className="text-sm font-bold">Health Score: 87/100</span></div>
-                </div>
-                <div className="absolute -top-3 -right-3 hidden lg:block">
-                  <div className="rounded-lg border bg-background shadow-lg px-3 py-2 flex items-center gap-2"><Shield className="h-4 w-4 text-emerald-500" /><div><p className="text-[10px] text-muted-foreground leading-none">Security</p><p className="text-sm font-bold leading-tight">94/100</p></div></div>
-                </div>
+                <LiveAuditWidget />
               </div>
             </div>
           </div>
@@ -141,9 +138,9 @@ export function LandingPage() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-12">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
               {[
-                { value: '50+', label: 'Automated check points per audit', icon: <Terminal className="h-5 w-5 text-muted-foreground/50" /> },
+                { value: '7', label: 'Audit categories per scan', icon: <Terminal className="h-5 w-5 text-muted-foreground/50" /> },
                 { value: '< 60s', label: 'Deep Playwright browser audit', icon: <Zap className="h-5 w-5 text-muted-foreground/50" /> },
-                { value: '5', label: 'Scoring categories scored 0-100', icon: <BarChart3 className="h-5 w-5 text-muted-foreground/50" /> },
+                { value: '7', label: 'Scoring categories scored 0-100', icon: <BarChart3 className="h-5 w-5 text-muted-foreground/50" /> },
                 { value: 'AI', label: 'Written summaries with action items', icon: <Sparkles className="h-5 w-5 text-muted-foreground/50" /> },
               ].map((s) => (
                 <div key={s.label} className="flex items-start gap-3">
@@ -182,8 +179,8 @@ export function LandingPage() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="max-w-xl mb-12">
               <Badge variant="outline" className="mb-4">Website Audit Features</Badge>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Every audit checks six categories. You get one health score.</h2>
-              <p className="mt-3 text-muted-foreground leading-relaxed">Pulse AI runs 50+ automated checks across performance, SEO, accessibility, security, and UX — then synthesizes everything into an AI-generated product health report with prioritized fixes.</p>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Every audit checks seven categories. You get one health score.</h2>
+              <p className="mt-3 text-muted-foreground leading-relaxed">Pulse AI runs automated checks across performance, SEO, accessibility, security, UX, technology, and content — then synthesizes everything into an AI-generated product health report with prioritized fixes.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {features.map((f) => (
@@ -243,6 +240,29 @@ export function LandingPage() {
                   ))}
                 </ul>
                 <Button variant="outline" className="mt-6" onClick={() => navigate('auth')}><Upload className="h-4 w-4 mr-2" />Upload your first APK</Button>
+                <p className="mt-3 text-xs text-muted-foreground">No APK? Paste a Play Store listing URL instead for a live store-page audit — ratings, screenshots, description quality, and ASO checks.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* EMBED WIDGET */}
+        <section className="py-20 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="max-w-lg">
+                <Badge variant="outline" className="mb-4"><Code className="h-3 w-3 mr-1" />Free Embeddable Widget</Badge>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Add a free audit tool to your own site in one line of code.</h2>
+                <p className="mt-3 text-muted-foreground leading-relaxed">Drop the Pulse AI widget on your blog, agency site, or dev tools page. Visitors get an instant health score with zero setup — no API key, no backend, no dependencies. Great for agencies offering free audits as a lead magnet.</p>
+                <div className="mt-5 rounded-lg bg-muted/60 border p-4 font-mono text-xs overflow-x-auto">
+                  <div className="text-muted-foreground">{'<div data-pulse-ai-widget></div>'}</div>
+                  <div className="text-muted-foreground mt-1">{'<script src="https://pulse-ai-app-audit.vercel.app/widget.js"></script>'}</div>
+                </div>
+                <Button variant="outline" className="mt-6" onClick={() => navigate('auth')}>Get Your Embed Code <ArrowRight className="h-4 w-4 ml-2" /></Button>
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-6">
+                <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wide font-medium">Preview</p>
+                <LiveAuditWidget />
               </div>
             </div>
           </div>
@@ -332,7 +352,7 @@ export function LandingPage() {
             <div className="max-w-xl mb-12">
               <Badge variant="outline" className="mb-4">Pricing Plans</Badge>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Start free. Upgrade when it hurts.</h2>
-              <p className="mt-3 text-muted-foreground leading-relaxed">The free plan gives you 10 simple and 3 deep audits per month — enough for personal projects and evaluation. Upgrade to Pro for unlimited audits, API access, and team features.</p>
+              <p className="mt-3 text-muted-foreground leading-relaxed">The free plan gives you 5 audits per month — enough for personal projects and evaluation. Upgrade to Pro for Deep Audits, Continuous Monitoring, and 100 audits/month. Enterprise unlocks unlimited audits, Competitor Benchmarking, and API access.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-4 lg:gap-6 max-w-4xl">
               {pricingPlans.map((plan) => (
@@ -340,7 +360,8 @@ export function LandingPage() {
                   {plan.highlighted && <div className="absolute -top-3 left-1/2 -translate-x-1/2"><Badge className="text-[10px]">Most Popular</Badge></div>}
                   <CardContent className="p-6 flex flex-col h-full">
                     <div className="mb-4"><h3 className="font-semibold text-lg">{plan.name}</h3><p className="text-xs text-muted-foreground mt-0.5">{plan.description}</p></div>
-                    <div className="mb-6"><span className="text-3xl font-bold">{plan.price}</span>{plan.period && <span className="text-sm text-muted-foreground ml-1">{plan.period}</span>}</div>
+                    <div className="mb-1"><span className="text-3xl font-bold">{plan.priceUsd}</span>{plan.period && <span className="text-sm text-muted-foreground ml-1">{plan.period}</span>}</div>
+                    <div className="mb-6"><span className="text-xs text-muted-foreground">or {plan.priceInr}{plan.period} for India</span></div>
                     <ul className="space-y-2.5 flex-1 mb-6">{plan.features.map((f) => (<li key={f} className="flex items-start gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />{f}</li>))}</ul>
                     <Button className="w-full" variant={plan.highlighted ? 'default' : 'outline'} onClick={() => navigate('auth')}>{plan.cta}</Button>
                   </CardContent>
