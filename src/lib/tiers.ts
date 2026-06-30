@@ -14,7 +14,10 @@ export interface TierLimits {
   apiAccess: boolean;
   whiteLabel: boolean;
   teamSeats: number;
-  priceMonthly: number; // INR
+  priceUsdMonthly: number; // USD, primary international pricing
+  priceInrMonthly: number; // INR, for Indian customers
+  stripePriceIdUsd?: string; // Stripe Price ID for USD subscription
+  stripePriceIdInr?: string; // Stripe Price ID for INR subscription
 }
 
 export const TIER_CONFIG: Record<Tier, TierLimits> = {
@@ -30,7 +33,8 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     apiAccess: false,
     whiteLabel: false,
     teamSeats: 1,
-    priceMonthly: 0,
+    priceUsdMonthly: 0,
+    priceInrMonthly: 0,
   },
   pro: {
     name: 'Pro',
@@ -44,7 +48,10 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     apiAccess: false,
     whiteLabel: false,
     teamSeats: 3,
-    priceMonthly: 1499,
+    priceUsdMonthly: 19,
+    priceInrMonthly: 1499,
+    stripePriceIdUsd: process.env.STRIPE_PRICE_PRO_USD,
+    stripePriceIdInr: process.env.STRIPE_PRICE_PRO_INR,
   },
   enterprise: {
     name: 'Enterprise',
@@ -58,7 +65,10 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     apiAccess: true,
     whiteLabel: true,
     teamSeats: -1, // unlimited
-    priceMonthly: 7999,
+    priceUsdMonthly: 99,
+    priceInrMonthly: 7999,
+    stripePriceIdUsd: process.env.STRIPE_PRICE_ENTERPRISE_USD,
+    stripePriceIdInr: process.env.STRIPE_PRICE_ENTERPRISE_INR,
   },
 };
 
