@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { HeartPulse, Loader2, ArrowRight, Mail } from 'lucide-react';
+import { HeartPulse, Loader2, ArrowRight, ArrowLeft, Mail } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase/client';
 import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getAuth, updateProfile } from 'firebase/auth';
 
