@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { runAudit } from '@/lib/audit-engine';
 import { generateAiSummary } from '@/lib/ai-summary';
 
-export const maxDuration = 300;
+export const maxDuration = 60; // Hobby plan max — was 300 (Pro-only), caused every deploy to fail validation
 export const dynamic = 'force-dynamic';
 
 function computeNextRun(frequency: string, from: Date = new Date()): Date {
@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
   const dueSchedules = await db.monitorSchedule.findMany({
     where: { enabled: true, nextRunAt: { lte: now } },
     include: { project: true },
-    take: 20,
+    take: 8, // Reduced from 20 — Hobby plan caps maxDuration at 60s total,
+    // and each audit + DB writes can take several seconds sequentially.
+    // Hourly cron tick means a backlog clears within a few hours even at
+    // this lower batch size; safer than timing out mid-batch.
   });
 
   console.log(`[monitor-cron] Found ${dueSchedules.length} due schedules`);
