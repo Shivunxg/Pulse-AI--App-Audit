@@ -103,3 +103,42 @@ FROM information_schema.tables t
 WHERE table_schema = 'public' 
   AND table_name IN ('User', 'Session', 'Project', 'Audit', '_prisma_migrations')
 ORDER BY table_name;
+
+-- ============================================================================
+-- TABLE: Competitor (added for Competitor Benchmarking feature)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS "Competitor" (
+  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "projectId" TEXT NOT NULL REFERENCES "Project"(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  url         TEXT NOT NULL,
+  "lastAuditId" TEXT,
+  comparison  TEXT NOT NULL DEFAULT '{}',
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "Competitor_projectId_idx" ON "Competitor"("projectId");
+
+-- ============================================================================
+-- TABLE: MonitorSchedule (added for Continuous Monitoring feature)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS "MonitorSchedule" (
+  id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "projectId"   TEXT NOT NULL UNIQUE REFERENCES "Project"(id) ON DELETE CASCADE,
+  enabled       BOOLEAN NOT NULL DEFAULT FALSE,
+  frequency     TEXT NOT NULL DEFAULT 'weekly',
+  mode          TEXT NOT NULL DEFAULT 'simple',
+  "lastRunAt"   TIMESTAMP,
+  "nextRunAt"   TIMESTAMP,
+  "alertOnDrop" BOOLEAN NOT NULL DEFAULT TRUE,
+  "dropThreshold" INTEGER NOT NULL DEFAULT 10,
+  "alertEmail"  TEXT,
+  "createdAt"   TIMESTAMP NOT NULL DEFAULT NOW(),
+  "updatedAt"   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- Add columns to Audit table for Technology/Content scores (if not already run)
+-- ============================================================================
+ALTER TABLE "Audit" ADD COLUMN IF NOT EXISTS "technologyScore" FLOAT;
+ALTER TABLE "Audit" ADD COLUMN IF NOT EXISTS "contentScore" FLOAT;
