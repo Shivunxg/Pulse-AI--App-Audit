@@ -121,6 +121,7 @@ export function AuditResultsView() {
   const { token, selectedProjectId, selectedAuditId, navigate } = useAppStore();
   const [audit, setAudit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   const isAndroid = audit?.findings?.security !== undefined && audit?.findings?.configuration !== undefined;
@@ -181,7 +182,7 @@ export function AuditResultsView() {
   const summary = audit.aiSummary as AiSummary | null;
 
   // ── PDF Export ──────────────────────────────────────────────────────────────
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!audit || !audit.findings) return;
     const f = audit.findings;
     const s = audit.aiSummary;
@@ -427,8 +428,39 @@ export function AuditResultsView() {
 </script>
 </body></html>`;
 
-    const win = window.open('', '_blank');
-    if (win) { win.document.write(html); win.document.close(); }
+    setExportingPdf(true);
+    try {
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          html,
+          filename: `pulse-ai-${deep ? 'deep' : 'simple'}-audit-${new Date(audit.createdAt).toISOString().slice(0, 10)}.pdf`,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'PDF generation failed');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pulse-ai-${deep ? 'deep' : 'simple'}-audit-${new Date(audit.createdAt).toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      // Fallback: open print-preview tab if server-side generation fails
+      const win = window.open('', '_blank');
+      if (win) { win.document.write(html); win.document.close(); }
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   return (
@@ -456,8 +488,12 @@ export function AuditResultsView() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportPdf}>
-          <FileText className="h-4 w-4 mr-2" /> Export PDF
+        <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf}>
+          {exportingPdf ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating PDF...</>
+          ) : (
+            <><FileText className="h-4 w-4 mr-2" /> Export PDF</>
+          )}
         </Button>
       </div>
 

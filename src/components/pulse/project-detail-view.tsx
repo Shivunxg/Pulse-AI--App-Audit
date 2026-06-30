@@ -66,6 +66,7 @@ export function ProjectDetailView() {
   const [project, setProject] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [auditMode, setAuditMode] = useState<'simple' | 'deep'>('simple');
   // v2 — auditModeRef fix + Anthropic AI summary
   const auditModeRef = useRef<'simple' | 'deep'>('simple');
@@ -357,11 +358,40 @@ export function ProjectDetailView() {
 </body>
 </html>`;
 
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
+    setExportingPdf(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/export-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            html,
+            filename: `pulse-ai-${audit.mode}-audit-${new Date(audit.createdAt).toISOString().slice(0, 10)}.pdf`,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'PDF generation failed');
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pulse-ai-${audit.mode}-audit-${new Date(audit.createdAt).toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('PDF export failed:', err);
+        const win = window.open('', '_blank');
+        if (win) { win.document.write(html); win.document.close(); }
+      } finally {
+        setExportingPdf(false);
+      }
+    })();
   };
 
   if (loading) {
@@ -549,8 +579,12 @@ export function ProjectDetailView() {
 
       {completedAudits.length > 0 && (
         <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => handleExportPdf(completedAudits[0])}>
-            <FileText className="h-4 w-4 mr-2" /> Export Latest Report
+          <Button variant="outline" size="sm" onClick={() => handleExportPdf(completedAudits[0])} disabled={exportingPdf}>
+            {exportingPdf ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating PDF...</>
+            ) : (
+              <><FileText className="h-4 w-4 mr-2" /> Export Latest Report</>
+            )}
           </Button>
         </div>
       )}
