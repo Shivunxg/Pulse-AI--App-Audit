@@ -509,7 +509,7 @@ async function analyzeSecurityDeep(page: import('playwright').Page, url: string,
   const passed: Finding[] = [];
   const isHttps = url.startsWith('https');
 
-  const securityHeaders: Record<string, { severity: 'critical' | 'warning'; description: string; recommendation: string }> = {
+  const securityHeaders: Record<string, { severity: 'critical' | 'warning' | 'info'; description: string; recommendation: string }> = {
     'strict-transport-security': {
       severity: 'warning',
       description: 'Missing HSTS header.',

@@ -268,7 +268,7 @@ function analyzeSecurity(url: string, headers: Record<string, string>) {
   const passed: Finding[] = [];
   const isHttps = url.startsWith('https');
 
-  const securityHeaders: Record<string, { severity: 'critical' | 'warning'; description: string; recommendation: string }> = {
+  const securityHeaders: Record<string, { severity: 'critical' | 'warning' | 'info'; description: string; recommendation: string }> = {
     'strict-transport-security': {
       severity: 'warning',
       description: 'Missing HSTS header. The site may be vulnerable to protocol downgrade attacks.',
@@ -395,8 +395,6 @@ function analyzeUx(html: string, url: string) {
 
 function formatHeaderName(header: string): string {
   return header.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
-}
-
 }
 
 // ── Priority 2: Technology Audit ─────────────────────────────────────────────

@@ -17,10 +17,12 @@ export interface PerformanceFindings {
   fcp?: number | null;
   lcp?: number | null;
   cls?: number | null;
+  tti?: number | null;
   domNodes?: number | null;
   layoutShifts?: number | null;
   consoleErrors?: number;
   blockedResources?: number;
+  networkRequests?: number;
   issues: Finding[];
   passed: Finding[];
 }
@@ -78,6 +80,7 @@ export interface UxFindings {
   // Deep audit extras
   responsiveIssues?: string[];
   screenshotTaken?: boolean;
+  mobileScore?: number | null;
   issues: Finding[];
   passed: Finding[];
 }
