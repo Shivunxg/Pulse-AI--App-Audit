@@ -8,6 +8,7 @@ import { DashboardView } from '@/components/pulse/dashboard-view';
 import { ProjectsView } from '@/components/pulse/projects-view';
 import { ProjectDetailView } from '@/components/pulse/project-detail-view';
 import { AuditResultsView } from '@/components/pulse/audit-results-view';
+import { PricingView } from '@/components/pulse/pricing-view';
 import { Button } from '@/components/ui/button';
 import { Menu, HeartPulse } from 'lucide-react';
 
@@ -45,6 +46,7 @@ export default function Home() {
       case 'projects': return <ProjectsView />;
       case 'project-detail': return <ProjectDetailView />;
       case 'audit-results': return <AuditResultsView />;
+      case 'pricing': return <PricingView />;
       default: return <DashboardView />;
     }
   };

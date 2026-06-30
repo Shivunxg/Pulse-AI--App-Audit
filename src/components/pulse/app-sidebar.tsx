@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, FolderKanban, LayoutDashboard, LogOut, Plus, HeartPulse } from 'lucide-react';
+import { Activity, BarChart3, FolderKanban, LayoutDashboard, LogOut, Plus, HeartPulse, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/use-app-store';
@@ -10,12 +10,13 @@ import { useRouter, usePathname } from 'next/navigation';
 const navItems = [
   { view: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
   { view: 'projects' as const, label: 'Projects', icon: FolderKanban },
+  { view: 'pricing' as const, label: 'Pricing', icon: Sparkles },
 ];
 
 export function AppSidebar() {
   const { currentView, navigate, sidebarOpen, setSidebarOpen, logout, user } = useAppStore();
 
-  const handleNav = (view: 'dashboard' | 'projects') => {
+  const handleNav = (view: 'dashboard' | 'projects' | 'pricing') => {
     navigate(view);
     setSidebarOpen(false);
   };

@@ -3,6 +3,7 @@ import { getUserFromRequest } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { runAudit } from '@/lib/audit-engine';
 import { generateAiSummary } from '@/lib/ai-summary';
+import { checkAuditAllowed, checkAiSummaryAllowed, filterFindingsByTier } from '@/lib/tiers';
 
 export const maxDuration = 60;
 
@@ -79,9 +80,37 @@ export async function POST(
     const workerUrl = process.env.PLAYWRIGHT_WORKER_URL;
     console.log(`[audit] mode=${mode} body.mode=${body.mode} workerUrl="${workerUrl}" workerSet=${!!workerUrl}`);
 
+    // ── Tier gating: check audit quota + deep audit access ──────────────────
+    const dbUser = await db.user.findUnique({ where: { id: user.id } });
+    if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const tier = (dbUser as any).tier || 'free';
+    const auditsThisMonth = (dbUser as any).auditsThisMonth || 0;
+    const auditsResetAt = (dbUser as any).auditsResetAt || new Date();
+
+    const gateCheck = checkAuditAllowed(tier, auditsThisMonth, auditsResetAt, mode);
+    if (!gateCheck.allowed) {
+      return NextResponse.json(
+        { error: gateCheck.reason, upgradeRequired: gateCheck.upgradeRequired, tierLimited: true },
+        { status: 403 }
+      );
+    }
+
+    // Reset monthly counter if 30+ days have passed
+    const daysSinceReset = (Date.now() - new Date(auditsResetAt).getTime()) / (1000 * 60 * 60 * 24);
+    const shouldReset = daysSinceReset >= 30;
+
     const audit = await db.audit.create({
       data: { projectId: id, status: 'running', mode },
     });
+
+    // Increment usage counter (or reset if new cycle)
+    await db.user.update({
+      where: { id: user.id },
+      data: shouldReset
+        ? { auditsThisMonth: 1, auditsResetAt: new Date() } as any
+        : { auditsThisMonth: { increment: 1 } } as any,
+    }).catch(err => console.warn('[audit] Failed to update usage counter (non-fatal):', err));
 
     try {
       let result;
@@ -106,12 +135,26 @@ export async function POST(
       }
 
       let aiSummaryJson = '{}';
-      try {
-        const aiSummary = await generateAiSummary(result.findings, project.url);
-        aiSummaryJson = JSON.stringify(aiSummary);
-      } catch (aiErr) {
-        console.error('[audit] AI summary error (non-fatal):', aiErr);
+      if (checkAiSummaryAllowed(tier)) {
+        try {
+          const aiSummary = await generateAiSummary(result.findings, project.url);
+          aiSummaryJson = JSON.stringify(aiSummary);
+        } catch (aiErr) {
+          console.error('[audit] AI summary error (non-fatal):', aiErr);
+        }
+      } else {
+        aiSummaryJson = JSON.stringify({
+          executiveSummary: '',
+          keyStrengths: [],
+          criticalIssues: [],
+          recommendations: [],
+          priorityActions: [],
+          _locked: true,
+        });
       }
+
+      // Free tier: Technology/Content scores still shown, but detailed findings stripped
+      const findingsToStore = filterFindingsByTier(result.findings, tier);
 
       const completed = await db.audit.update({
         where: { id: audit.id },
@@ -126,7 +169,7 @@ export async function POST(
           uxScore: result.uxScore,
           technologyScore: (result as any).technologyScore ?? null,
           contentScore: (result as any).contentScore ?? null,
-          findings: JSON.stringify(result.findings),
+          findings: JSON.stringify(findingsToStore),
           aiSummary: aiSummaryJson,
           responseTime: result.responseTime,
           pageSize: result.pageSize,

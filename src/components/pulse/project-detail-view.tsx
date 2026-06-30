@@ -11,7 +11,7 @@ import { ScoreBar } from './score-bar';
 import {
   ArrowLeft, Play, Loader2, Clock, CheckCircle2, XCircle,
   Globe, ExternalLink, Zap, FileText, Smartphone, Upload,
-  Gauge, Search, Eye, Shield, MousePointer, Layers, Cpu, Lock, Code,
+  Gauge, Search, Eye, Shield, MousePointer, Layers, Cpu, Lock, Code, X,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AuditFindings, AiSummary } from '@/types';
@@ -67,6 +67,7 @@ export function ProjectDetailView() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [auditMode, setAuditMode] = useState<'simple' | 'deep'>('simple');
   // v2 — auditModeRef fix + Anthropic AI summary
   const auditModeRef = useRef<'simple' | 'deep'>('simple');
@@ -116,12 +117,20 @@ export function ProjectDetailView() {
     if (!token || !selectedProjectId || running) return;
     setRunning(true);
     setIsAuditPolling(false);
+    setUpgradePrompt(null);
     try {
       const res = await fetch(`/api/projects/${selectedProjectId}/audits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mode: auditModeRef.current }),
       });
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (data.tierLimited) {
+          setUpgradePrompt(data.error || 'This feature requires a plan upgrade.');
+          return;
+        }
+      }
       // Audit is now synchronous — response means it's done (or failed)
       loadProject();
     } catch {
@@ -479,6 +488,25 @@ export function ProjectDetailView() {
             {auditMode === 'deep' ? 'Deep audits add sitemap, robots.txt, www redirect, and extended SEO checks on top of Simple' : 'Simple audits use fast HTTP analysis for immediate results'}
           </Badge>
         </div>
+      )}
+
+      {/* Tier-gate upgrade prompt */}
+      {upgradePrompt && (
+        <Card className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Upgrade Required</p>
+              <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{upgradePrompt}</p>
+              <Button size="sm" className="mt-3 bg-amber-600 hover:bg-amber-700 text-white" onClick={() => navigate('pricing')}>
+                View Plans
+              </Button>
+            </div>
+            <Button variant="ghost" size="icon" className="shrink-0 h-6 w-6" onClick={() => setUpgradePrompt(null)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {/* Latest Audit Summary */}
