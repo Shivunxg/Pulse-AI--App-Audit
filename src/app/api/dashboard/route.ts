@@ -56,6 +56,13 @@ export async function GET(request: NextRequest) {
         createdAt: a.createdAt,
         project: { id: a.project.id, name: a.project.name, url: a.project.url },
       })),
+    }, {
+      headers: {
+        // Cache for 10s on the client, allow stale-while-revalidate for 30s —
+        // avoids re-hitting the DB on rapid back/forward nav while still
+        // staying fresh enough for a dashboard.
+        'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+      },
     });
   } catch (err) {
     console.error('Dashboard error:', err);

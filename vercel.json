@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "buildCommand": "cp prisma/schema.prod.prisma prisma/schema.prisma && npx prisma generate && next build",
   "installCommand": "npm install",
+  "regions": ["sin1"],
   "functions": {
     "src/app/api/projects/[id]/audits/route.ts": {
       "maxDuration": 60
@@ -13,7 +14,13 @@
   },
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/dashboard",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, max-age=10, stale-while-revalidate=30" }
+      ]
+    },
+    {
+      "source": "/api/((?!dashboard).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" }
       ]
